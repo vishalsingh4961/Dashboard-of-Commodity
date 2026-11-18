@@ -3,26 +3,26 @@
     "cu": {
       "ok": true,
       "source": "westmetall",
-      "rows": 126,
+      "rows": 7,
       "last": "2026-11-17"
     },
     "al": {
       "ok": true,
       "source": "westmetall",
-      "rows": 126,
+      "rows": 7,
       "last": "2026-11-17"
     },
     "zn": {
       "ok": true,
       "source": "westmetall",
-      "rows": 126,
+      "rows": 7,
       "last": "2026-11-17"
     }
   },
   "shfe": {
     "ok": true,
     "source": "shfe",
-    "rows": 6104,
+    "rows": 896,
     "last": "2026-11-18"
   },
   "fx": {
@@ -33,7 +33,7 @@
   "ine": {
     "ok": true,
     "source": "ine",
-    "rows": 2440,
+    "rows": 60,
     "last": "2026-11-18"
   },
   "intl": {
@@ -62,5 +62,5 @@
       "last": "2026-11-18"
     }
   },
-  "run_utc": "2026-11-18T13:35:23+00:00"
+  "run_utc": "2026-11-18T13:41:11+00:00"
 }
