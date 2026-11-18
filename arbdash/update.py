@@ -118,6 +118,11 @@ def fetch_all(cfg: dict, today: dt.date) -> dict:
     for k, o in (cfg.get("others") or {}).items():
         code_map[o["code"]] = k
         by_exchange.setdefault(o.get("exchange", "shfe"), set()).add(o["code"])
+    prev_log = {}
+    try:
+        prev_log = json.loads((DATA / "run_log.json").read_text())
+    except (OSError, ValueError):
+        pass
     for exch, codes in by_exchange.items():
         if not codes:
             continue
@@ -126,10 +131,24 @@ def fetch_all(cfg: dict, today: dt.date) -> dict:
         last = _last_date(old)
         start = (last - dt.timedelta(days=4)) if last else default_start
         days = [start + dt.timedelta(days=i) for i in range((today - start).days + 1)]
+        # days that failed on the previous run get another try
+        retry = [dt.date.fromisoformat(d) for d in (prev_log.get(exch) or {}).get("failed_days", [])]
+        # weekdays inside the stored history that have no rows (earlier failures; holidays are cheap 404s)
+        gaps = set()
+        if last:
+            have = set(old["date"])
+            d = max(min(have), default_start)
+            while d < start:
+                if d.weekday() < 5 and d not in have:
+                    gaps.add(d)
+                d += dt.timedelta(days=1)
+        days = sorted(set(days) | gaps | {d for d in retry if d >= default_start})
         sources.log(f"{exch.upper()}: {sorted(codes)} from {start}")
         try:
             df = sources.fetch_shfe_range(days, codes, exch)
             log[exch] = {"ok": True, "source": exch, "rows": len(df), "last": str(df["date"].max())}
+            if df.attrs.get("failed_days"):
+                log[exch]["failed_days"] = df.attrs["failed_days"]
         except Exception as e:  # noqa: BLE001
             msg = f"{exch}: {e}"
             try:

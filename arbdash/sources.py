@@ -327,9 +327,25 @@ def fetch_shfe_range(days: list[dt.date], codes: set[str], exchange: str = "shfe
         pool.shutdown(wait=False, cancel_futures=True)
     if not frames:
         raise SourceError(f"{exchange.upper()}: no data returned ({len(errors)} errors)")
-    if errors:
-        log(f"{exchange.upper()}: {len(errors)} days failed, e.g. {errors[-1][:160]}")
-    return pd.concat(frames, ignore_index=True)
+
+    # 3) retry failed days slowly (the exchange sometimes resets parallel connections)
+    failed = sorted({d for d in rest if any(e.startswith(f"{d}:") for e in errors)})
+    still = []
+    if failed:
+        log(f"{exchange.upper()}: retrying {len(failed)} failed days one by one")
+        for d in failed:
+            time.sleep(1.0)
+            try:
+                df = fetch_shfe_day(d, codes, exchange)
+                if not df.empty:
+                    frames.append(df)
+            except SourceError:
+                still.append(d)
+        if still:
+            log(f"{exchange.upper()}: {len(still)} days still missing; they will be retried next run")
+    out = pd.concat(frames, ignore_index=True)
+    out.attrs["failed_days"] = [d.isoformat() for d in still]
+    return out
 
 
 # ---------------------------------------------------------------------------
