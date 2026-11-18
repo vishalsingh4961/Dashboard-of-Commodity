@@ -1,0 +1,59 @@
+name: Daily LME-SHFE update
+
+on:
+  schedule:
+    # GitHub cron runs in UTC. Dubai = UTC+4.
+    - cron: "30 14 * * 1-5"   # 18:30 Dubai, after LME official prices and SHFE close
+    - cron: "0 18 * * 1-5"    # 22:00 Dubai, catches late updates (each run is safe to repeat)
+  push:
+    branches: [main]
+    paths: [config.yaml]       # editing your premiums triggers a rebuild
+  workflow_dispatch:           # "Run workflow" button in the Actions tab
+    inputs:
+      recompute:
+        description: "Recalculate ALL history with the current config.yaml"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: daily-update
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install
+        run: pip install -r requirements.txt
+
+      - name: Fetch, calculate, render
+        run: |
+          if [ "${{ github.event.inputs.recompute }}" = "true" ]; then
+            python -m arbdash.update --recompute
+          else
+            python -m arbdash.update
+          fi
+
+      - name: Commit data and dashboard
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data docs
+          if git diff --staged --quiet; then
+            echo "No changes"
+          else
+            git commit -m "Daily update $(date -u +%Y-%m-%d)"
+            git pull --rebase
+            git push
+          fi

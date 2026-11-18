@@ -1,0 +1,112 @@
+# ---------------------------------------------------------------------------
+# LME–SHFE arbitrage dashboard — your assumptions
+#
+# Edit this file on GitHub (pencil icon) whenever premiums, duty or costs change.
+# The next scheduled run picks them up. Past days keep the values that were
+# used on the day (see settings.recompute_window_days).
+# ---------------------------------------------------------------------------
+
+# Set to true once you have entered real premiums and duty rates below.
+# While false, the dashboard shows a warning banner.
+assumptions_confirmed: false
+
+# China import VAT, as a decimal (0.13 = 13%). SHFE prices include it.
+vat: 0.13
+
+fx:
+  # Leave manual_usdcny empty to use the daily ECB reference USD/CNY rate
+  # (via frankfurter.dev). Set a number (e.g. 7.12) to force a fixed rate.
+  manual_usdcny:
+
+metals:
+  cu:
+    name: Copper
+    shfe_code: cu              # SHFE product code
+    westmetall_field: LME_Cu_cash
+    sina_lme_symbol: CAD       # fallback source for LME 3M
+    premium_usd: 0             # SET ME: CIF Shanghai / Yangshan premium, USD/t
+    premium_as_of: 2026-11-17  # date you last updated the premium
+    duty: 0.0                  # SET ME: import duty as a decimal (0.02 = 2%) for your origin/FTA
+    misc_cny: 150              # port, LC, insurance, finance, inland etc., CNY/t (example value)
+
+  al:
+    name: Aluminium
+    shfe_code: al
+    westmetall_field: LME_Al_cash
+    sina_lme_symbol: AHD
+    premium_usd: 0             # SET ME: CIF Shanghai/Japan-Korea premium you use, USD/t
+    premium_as_of: 2026-11-17
+    duty: 0.0                  # SET ME
+    misc_cny: 150
+
+  zn:
+    name: Zinc
+    shfe_code: zn
+    westmetall_field: LME_Zn_cash
+    sina_lme_symbol: ZSD
+    premium_usd: 0             # SET ME: CIF Shanghai zinc premium, USD/t
+    premium_as_of: 2026-11-17
+    duty: 0.0                  # SET ME
+    misc_cny: 150
+
+# ---------------------------------------------------------------------------
+# Precious metals and crude: China price (most-active contract) vs international.
+#   cost_usd   : your all-in import cost on top of the international price
+#                (freight, insurance, bar/refining, finance), in USD per oz or per bbl
+#   duty / vat : decimals. SHFE silver prices include 13% VAT. Gold on SHFE trades
+#                VAT-free, and INE crude (SC) is quoted net of duty and VAT (bonded).
+#   near_band  : P/L within ± this (China units) shows as "Near breakeven"
+#   intl       : sources tried in order (westmetall / yahoo / sina)
+# ---------------------------------------------------------------------------
+others:
+  au:
+    name: Gold
+    kind: gold                 # SHFE au, CNY/g  vs  LBMA gold, USD/oz
+    exchange: shfe
+    code: au
+    intl: [{westmetall: USD_ozt_London}, {yahoo: GC=F}, {sina: GC}]
+    intl_label: LBMA gold
+    cost_usd: 0                # SET ME, USD/oz
+    duty: 0.0
+    vat: 0.0
+    near_band: 1               # CNY/g
+
+  ag:
+    name: Silver
+    kind: silver               # SHFE ag, CNY/kg  vs  COMEX silver, USD/oz
+    exchange: shfe
+    code: ag
+    intl: [{yahoo: SI=F}, {sina: SI}]
+    intl_label: COMEX silver
+    cost_usd: 0                # SET ME, USD/oz
+    duty: 0.0                  # SET ME
+    vat: 0.13
+    near_band: 50              # CNY/kg
+
+  sc:
+    name: Crude
+    kind: crude                # INE SC, CNY/bbl  vs  Brent, USD/bbl (+ WTI for Brent–WTI)
+    exchange: ine
+    code: sc
+    intl: [{yahoo: BZ=F}, {sina: OIL}]
+    intl_label: Brent
+    intl2: [{yahoo: CL=F}, {sina: CL}]
+    intl2_label: WTI
+    cost_usd: 0                # optional freight/quality adjustment added to Brent, USD/bbl
+    duty: 0.0
+    vat: 0.0
+
+settings:
+  # First run downloads this much history (calendar days).
+  backfill_days: 180
+  # Each run recalculates the last N days with the current assumptions;
+  # older days are kept exactly as they were calculated.
+  recompute_window_days: 7
+  # Import P/L within ± this band (CNY/t) is shown as "Near breakeven".
+  near_band_cny: 100
+  # Premium older than this (days) gets a "stale" warning.
+  stale_premium_days: 14
+  # Time zone used for "last updated" on the dashboard.
+  display_tz: Asia/Dubai
+  # Dashboard title.
+  title: LME–SHFE arbitrage & spreads

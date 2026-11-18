@@ -1,0 +1,692 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>LME–SHFE arbitrage &amp; spreads</title>
+<style>
+.viz-root {
+  color-scheme: light;
+  --page: #f9f9f7;
+  --surface-1: #fcfcfb;
+  --text-primary: #0b0b0b;
+  --text-secondary: #52514e;
+  --muted: #898781;
+  --grid: #e1e0d9;
+  --baseline: #c3c2b7;
+  --border: rgba(11,11,11,0.10);
+  --series-1: #2a78d6;
+  --series-2: #eb6834;
+  --series-3: #1baf7a;
+  --ref: #898781;
+  --good: #0ca30c;
+  --warning: #fab219;
+  --critical: #d03b3b;
+  --wash: rgba(11,11,11,0.04);
+}
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) .viz-root {
+    color-scheme: dark;
+    --page: #0d0d0d; --surface-1: #1a1a19; --text-primary: #f0efec; --text-secondary: #c3c2b7;
+    --muted: #898781; --grid: #2c2c2a; --baseline: #383835; --border: rgba(255,255,255,0.10);
+    --series-1: #3987e5; --series-2: #d95926; --series-3: #199e70; --ref: #898781; --wash: rgba(255,255,255,0.05);
+  }
+}
+:root[data-theme="dark"] .viz-root {
+  color-scheme: dark;
+  --page: #0d0d0d; --surface-1: #1a1a19; --text-primary: #f0efec; --text-secondary: #c3c2b7;
+  --muted: #898781; --grid: #2c2c2a; --baseline: #383835; --border: rgba(255,255,255,0.10);
+  --series-1: #3987e5; --series-2: #d95926; --series-3: #199e70; --ref: #898781; --wash: rgba(255,255,255,0.05);
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
+.viz-root { background: var(--page); color: var(--text-primary); min-height: 100vh; padding: 20px 16px 40px; }
+.wrap { max-width: 1240px; margin: 0 auto; }
+header { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 16px; }
+h1 { font-size: 22px; font-weight: 600; margin: 0 0 4px; letter-spacing: -0.01em; }
+h2 { font-size: 15px; font-weight: 600; margin: 0 0 10px; }
+.sub { color: var(--text-secondary); font-size: 13px; line-height: 1.5; }
+.muted { color: var(--muted); }
+button { font: inherit; color: inherit; }
+.theme-btn { background: var(--surface-1); border: 1px solid var(--border); border-radius: 8px; padding: 6px 10px; font-size: 12px; color: var(--text-secondary); cursor: pointer; white-space: nowrap; }
+.card { background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px; padding: 16px; }
+section { margin-bottom: 16px; }
+.group-title { font-size: 13px; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.04em; margin: 22px 0 10px; }
+
+.banner { display: flex; gap: 10px; align-items: flex-start; background: var(--surface-1); border: 1px solid var(--border); border-left: 3px solid var(--warning); border-radius: 8px; padding: 10px 12px; margin-bottom: 8px; font-size: 13px; line-height: 1.45; color: var(--text-secondary); }
+.banner.err { border-left-color: var(--critical); }
+.banner .ic { font-weight: 700; color: var(--text-primary); }
+
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(270px, 1fr)); gap: 12px; }
+.tile-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+.tile-name { font-size: 15px; font-weight: 600; }
+.pill { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; padding: 3px 9px; border-radius: 999px; border: 1px solid var(--border); background: var(--wash); color: var(--text-primary); }
+.pill .dot { font-size: 11px; line-height: 1; }
+.pill.open .dot { color: var(--good); } .pill.near .dot { color: var(--warning); } .pill.closed .dot { color: var(--critical); } .pill.na .dot, .pill.neutral .dot { color: var(--muted); }
+.tile-label { font-size: 12px; color: var(--text-secondary); }
+.tile-value { font-size: 34px; font-weight: 600; letter-spacing: -0.02em; margin: 2px 0 0; }
+.tile-value .unit { font-size: 13px; font-weight: 500; color: var(--text-secondary); margin-left: 4px; letter-spacing: 0; }
+.tile-delta { font-size: 12px; color: var(--text-secondary); margin-bottom: 10px; }
+.kv { display: grid; grid-template-columns: 1fr auto; gap: 5px 12px; font-size: 13px; border-top: 1px solid var(--grid); padding-top: 10px; }
+.kv dt { color: var(--text-secondary); } .kv dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
+.tile-foot { font-size: 11px; color: var(--muted); margin-top: 10px; }
+
+.tbl-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; }
+th, td { padding: 7px 8px; text-align: right; white-space: nowrap; border-bottom: 1px solid var(--grid); font-variant-numeric: tabular-nums; }
+th { font-weight: 600; color: var(--text-secondary); font-size: 12px; }
+th:first-child, td:first-child { text-align: left; }
+tbody tr:hover { background: var(--wash); }
+
+.filters { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 12px; }
+.seg { display: inline-flex; background: var(--surface-1); border: 1px solid var(--border); border-radius: 8px; padding: 2px; }
+.seg button { background: none; border: 0; padding: 6px 12px; border-radius: 6px; font-size: 13px; color: var(--text-secondary); cursor: pointer; }
+.seg button:hover { background: var(--wash); }
+.seg button[aria-pressed="true"] { background: var(--wash); color: var(--text-primary); font-weight: 600; box-shadow: inset 0 0 0 1px var(--border); }
+
+.charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 12px; }
+.chart-title { font-size: 14px; font-weight: 600; margin: 0; }
+.chart-sub { font-size: 12px; color: var(--text-secondary); margin: 2px 0 8px; }
+.chart-box { position: relative; height: 240px; }
+
+details summary { cursor: pointer; font-size: 14px; font-weight: 600; }
+details[open] summary { margin-bottom: 10px; }
+.two { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 12px; }
+.src li { margin-bottom: 4px; }
+.src { padding-left: 18px; margin: 0; font-size: 13px; color: var(--text-secondary); }
+.ok { color: var(--text-primary); font-weight: 600; }
+.notes { font-size: 12px; color: var(--text-secondary); line-height: 1.6; }
+.notes code { font-size: 11.5px; }
+.flag { font-weight: 600; color: var(--text-primary); }
+@media (max-width: 520px) { .tile-value { font-size: 30px; } h1 { font-size: 19px; } .viz-root { padding: 14px 10px 30px; } }
+</style>
+</head>
+<body>
+<div class="viz-root">
+<div class="wrap">
+  <header>
+    <div>
+      <h1 id="title"></h1>
+      <div class="sub" id="subtitle"></div>
+    </div>
+    <button class="theme-btn" id="themeBtn" type="button" aria-label="Switch colour theme">Theme: auto</button>
+  </header>
+
+  <div id="banners" role="status"></div>
+
+  <h2 class="group-title">Base metals · LME vs SHFE</h2>
+  <section class="tiles" id="tiles" aria-label="Import arbitrage by metal"></section>
+
+  <h2 class="group-title">Precious metals &amp; crude · international vs China</h2>
+  <section class="tiles" id="tiles2" aria-label="Gold, silver and crude"></section>
+
+  <section class="card">
+    <h2>Latest snapshot · base metals</h2>
+    <div class="tbl-wrap"><table id="snapshot"></table></div>
+    <h2 style="margin-top:18px">Latest snapshot · precious metals &amp; crude</h2>
+    <div class="tbl-wrap"><table id="snapshot2"></table></div>
+  </section>
+
+  <section>
+    <div class="filters" role="toolbar" aria-label="Chart filters">
+      <div class="seg" id="metalSeg" aria-label="Instrument"></div>
+      <div class="seg" id="rangeSeg" aria-label="Date range"></div>
+    </div>
+    <div class="charts" id="charts"></div>
+  </section>
+
+  <section class="card">
+    <details id="dataDetails">
+      <summary>Data table — <span id="tableLabel"></span></summary>
+      <div class="tbl-wrap"><table id="dataTable"></table></div>
+    </details>
+  </section>
+
+  <section class="two">
+    <div class="card">
+      <h2>Your assumptions <span class="muted" style="font-weight:400">(config.yaml)</span></h2>
+      <div class="tbl-wrap"><table id="assumptions"></table></div>
+      <div class="tbl-wrap" style="margin-top:12px"><table id="assumptions2"></table></div>
+    </div>
+    <div class="card">
+      <h2>Last run</h2>
+      <ul class="src" id="sources"></ul>
+    </div>
+  </section>
+
+  <section class="card notes">
+    <h2>How it is calculated</h2>
+    <div>Import cost = (LME + CIF premium) × USD/CNY × (1 + duty) × (1 + VAT) + misc costs. &nbsp;Import P/L = SHFE − import cost; positive means the import window is open.</div>
+    <div>Spot compares the SHFE 1st month (连一) with LME cash. 3M compares the SHFE 3rd month (连三) with LME 3-month. Ratio = SHFE ÷ LME; breakeven ratio = import cost ÷ LME.</div>
+    <div>SHFE−LME $ = SHFE 1st month with VAT taken out, in USD, minus LME cash. Breakeven premium = the highest CIF premium an importer could pay today and still break even. Cash–3M and SHFE calendar spreads are near minus far: positive = backwardation, negative = contango.</div>
+    <div>Gold, silver and crude use the most-active China contract (by open interest). Shanghai premium = China price with VAT removed, converted to USD/oz (or USD/bbl), minus the international price. Import P/L = China price − (international + your cost) × USD/CNY × (1 + duty) × (1 + VAT), in CNY/g (gold), CNY/kg (silver). Crude: SC − Brent in USD/bbl; SC is quoted net of duty and VAT. Main − next = most-active minus the next most-active later contract.</div>
+    <div>Timing: China prices are settlement prices from the Shanghai close; LBMA gold is the London fixing, and COMEX silver, Brent and WTI are the same-day front-month closes in New York, so part of any daily move is just the time gap.</div>
+    <div>Sources: LME official prices and stocks and the LBMA gold price via Westmetall; SHFE and INE settlement prices from shfe.com.cn and ine.cn; COMEX silver, Brent and WTI via Yahoo Finance; USD/CNY = ECB reference rate via frankfurter.dev. LME data is licensed by the LME — keep this page for your own use. Indicative only, not trading advice.</div>
+  </section>
+</div>
+</div>
+
+<script src="assets/chart.umd.min.js"></script>
+<script>
+"use strict";
+const DATA = {"title": "LME–SHFE arbitrage & spreads", "updated_local": "17 Nov 2026, 19:30", "tz": "Asia/Dubai", "today": "2026-11-17", "confirmed": false, "vat": 0.13, "manual_fx": null, "fx": null, "near_band": 100.0, "stale_days": 14, "metals": [{"code": "cu", "name": "Copper", "premium_usd": 0.0, "premium_as_of": "2026-11-17", "premium_age_days": 0, "duty": 0.0, "misc_cny": 150.0, "latest": null, "prev": null, "last_lme": null, "last_shfe": null, "series": {"date": [], "lme_cash": [], "lme_3m": [], "lme_c3m": [], "lme_stock": [], "shfe_m1": [], "shfe_m2": [], "shfe_m3": [], "shfe_m1_m2": [], "shfe_m1_m3": [], "shfe_m1_contract": [], "shfe_m3_contract": [], "shfe_main_contract": [], "usdcny": [], "premium_usd": [], "duty": [], "misc_cny": [], "import_cost_spot": [], "arb_spot": [], "ratio_spot": [], "be_ratio_spot": [], "be_premium_spot": [], "import_cost_3m": [], "arb_3m": [], "ratio_3m": [], "be_ratio_3m": [], "shfe_lme_spread_usd": []}}, {"code": "al", "name": "Aluminium", "premium_usd": 0.0, "premium_as_of": "2026-11-17", "premium_age_days": 0, "duty": 0.0, "misc_cny": 150.0, "latest": null, "prev": null, "last_lme": null, "last_shfe": null, "series": {"date": [], "lme_cash": [], "lme_3m": [], "lme_c3m": [], "lme_stock": [], "shfe_m1": [], "shfe_m2": [], "shfe_m3": [], "shfe_m1_m2": [], "shfe_m1_m3": [], "shfe_m1_contract": [], "shfe_m3_contract": [], "shfe_main_contract": [], "usdcny": [], "premium_usd": [], "duty": [], "misc_cny": [], "import_cost_spot": [], "arb_spot": [], "ratio_spot": [], "be_ratio_spot": [], "be_premium_spot": [], "import_cost_3m": [], "arb_3m": [], "ratio_3m": [], "be_ratio_3m": [], "shfe_lme_spread_usd": []}}, {"code": "zn", "name": "Zinc", "premium_usd": 0.0, "premium_as_of": "2026-11-17", "premium_age_days": 0, "duty": 0.0, "misc_cny": 150.0, "latest": null, "prev": null, "last_lme": null, "last_shfe": null, "series": {"date": [], "lme_cash": [], "lme_3m": [], "lme_c3m": [], "lme_stock": [], "shfe_m1": [], "shfe_m2": [], "shfe_m3": [], "shfe_m1_m2": [], "shfe_m1_m3": [], "shfe_m1_contract": [], "shfe_m3_contract": [], "shfe_main_contract": [], "usdcny": [], "premium_usd": [], "duty": [], "misc_cny": [], "import_cost_spot": [], "arb_spot": [], "ratio_spot": [], "be_ratio_spot": [], "be_premium_spot": [], "import_cost_3m": [], "arb_3m": [], "ratio_3m": [], "be_ratio_3m": [], "shfe_lme_spread_usd": []}}], "others": [{"code": "au", "name": "Gold", "kind": "gold", "units": {"cn": "CNY/g", "intl": "USD/oz"}, "intl_label": "LBMA gold", "intl2_label": null, "cost_usd": 0.0, "duty": 0.0, "vat": 0.0, "near_band": 1.0, "latest": null, "prev": null, "series": {"date": [], "cn_main": [], "cn_main_contract": [], "cn_next": [], "cn_next_contract": [], "cn_spread": [], "intl": [], "intl2": [], "intl_spread": [], "usdcny": [], "cost_usd": [], "duty": [], "vat": [], "cn_usd": [], "premium_usd": [], "intl_cn": [], "import_cost_cn": [], "arb_cn": [], "net_usd": []}}, {"code": "ag", "name": "Silver", "kind": "silver", "units": {"cn": "CNY/kg", "intl": "USD/oz"}, "intl_label": "COMEX silver", "intl2_label": null, "cost_usd": 0.0, "duty": 0.0, "vat": 0.13, "near_band": 50.0, "latest": null, "prev": null, "series": {"date": [], "cn_main": [], "cn_main_contract": [], "cn_next": [], "cn_next_contract": [], "cn_spread": [], "intl": [], "intl2": [], "intl_spread": [], "usdcny": [], "cost_usd": [], "duty": [], "vat": [], "cn_usd": [], "premium_usd": [], "intl_cn": [], "import_cost_cn": [], "arb_cn": [], "net_usd": []}}, {"code": "sc", "name": "Crude", "kind": "crude", "units": {"cn": "CNY/bbl", "intl": "USD/bbl"}, "intl_label": "Brent", "intl2_label": "WTI", "cost_usd": 0.0, "duty": 0.0, "vat": 0.0, "near_band": 0.0, "latest": null, "prev": null, "series": {"date": [], "cn_main": [], "cn_main_contract": [], "cn_next": [], "cn_next_contract": [], "cn_spread": [], "intl": [], "intl2": [], "intl_spread": [], "usdcny": [], "cost_usd": [], "duty": [], "vat": [], "cn_usd": [], "premium_usd": [], "intl_cn": [], "import_cost_cn": [], "arb_cn": [], "net_usd": []}}], "log": {}};
+
+// ---------- formatting ----------
+const MINUS = "−";
+function fmt(v, dp = 0, signed = false) {
+  if (v === null || v === undefined || Number.isNaN(v)) return "—";
+  const s = Math.abs(v).toLocaleString("en-US", { minimumFractionDigits: dp, maximumFractionDigits: dp });
+  if (v < 0 && Number(s.replace(/,/g, "")) !== 0) return MINUS + s;
+  return (signed && v > 0 ? "+" : "") + s;
+}
+function usd(v) {
+  if (v === null || v === undefined || Number.isNaN(v)) return "—";
+  return (v < 0 && Math.round(v) !== 0 ? MINUS : "") + "$" + fmt(Math.abs(v), 0);
+}
+function compact(v) {
+  if (v === null || v === undefined) return "—";
+  const a = Math.abs(v);
+  if (a >= 1e6) return (v / 1e6).toFixed(a >= 1e7 ? 0 : 1).replace(/\.0$/, "") + "M";
+  if (a >= 1e4) return Math.round(v / 1e3) + "K";
+  return fmt(v);
+}
+const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+function dShort(iso) { if (!iso) return "—"; const [y, m, d] = iso.split("-"); return `${+d} ${MONTHS[+m - 1]}`; }
+function dLong(iso) { if (!iso) return "—"; const [y, m, d] = iso.split("-"); return `${+d} ${MONTHS[+m - 1]} ${y}`; }
+function daysBetween(a, b) { return Math.round((new Date(b) - new Date(a)) / 864e5); }
+function el(tag, attrs = {}, ...kids) {
+  const n = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (k === "class") n.className = v; else if (k === "text") n.textContent = v; else n.setAttribute(k, v);
+  }
+  for (const k of kids) if (k !== null && k !== undefined) n.append(k instanceof Node ? k : document.createTextNode(String(k)));
+  return n;
+}
+
+// ---------- status ----------
+function status(pl) {
+  if (pl === null || pl === undefined) return { cls: "na", dot: "○", text: "No data" };
+  if (pl > DATA.near_band) return { cls: "open", dot: "▲", text: "Window open" };
+  if (pl < -DATA.near_band) return { cls: "closed", dot: "▼", text: "Window closed" };
+  return { cls: "near", dot: "●", text: "Near breakeven" };
+}
+function pill(pl) {
+  const s = status(pl);
+  return el("span", { class: `pill ${s.cls}` }, el("span", { class: "dot", "aria-hidden": "true", text: s.dot }), s.text);
+}
+
+// ---------- header + banners ----------
+document.getElementById("title").textContent = DATA.title;
+(function subtitle() {
+  const fx = DATA.manual_fx ? `USD/CNY ${fmt(+DATA.manual_fx, 4)} (manual)` :
+    DATA.fx ? `USD/CNY ${fmt(DATA.fx.value, 4)} (ECB, ${dShort(DATA.fx.date)})` : "USD/CNY —";
+  document.getElementById("subtitle").textContent = `Updated ${DATA.updated_local} (${DATA.tz}) · ${fx} · base-metal VAT ${fmt(DATA.vat * 100, 0)}%`;
+})();
+
+(function banners() {
+  const box = document.getElementById("banners");
+  const add = (text, err) => box.append(el("div", { class: "banner" + (err ? " err" : "") }, el("span", { class: "ic", "aria-hidden": "true", text: err ? "!" : "i" }), el("span", { text })));
+  if (!DATA.confirmed) add("Premiums and duty rates in config.yaml are still placeholders, so import P/L is indicative only. Set them, then change assumptions_confirmed to true.");
+  for (const m of DATA.metals) {
+    if (m.premium_age_days !== null && m.premium_age_days > DATA.stale_days)
+      add(`${m.name} premium was last updated ${m.premium_age_days} days ago (${dLong(m.premium_as_of)}).`);
+    const lastDates = [m.last_lme, m.last_shfe].filter(Boolean);
+    if (lastDates.length) {
+      const oldest = lastDates.sort()[0];
+      if (daysBetween(oldest, DATA.today) > 4) add(`${m.name}: newest complete data is from ${dLong(oldest)}.`, true);
+    }
+  }
+  const log = DATA.log || {};
+  if (log.shfe && log.shfe.ok === false) add(`SHFE download failed on the last run: ${log.shfe.error}`, true);
+  if (log.fx && log.fx.ok === false) add(`USD/CNY download failed on the last run: ${log.fx.error}`, true);
+  for (const [k, v] of Object.entries(log.lme || {})) if (v && v.ok === false) add(`LME ${k.toUpperCase()} download failed on the last run: ${v.error}`, true);
+  if (log.ine && log.ine.ok === false) add(`INE (crude) download failed on the last run: ${log.ine.error}`, true);
+  for (const v of Object.values(log.intl || {})) if (v && v.ok === false) add(`${v.label || "International price"} download failed on the last run: ${v.error}`, true);
+  for (const o of DATA.others || []) {
+    const d = o.latest && o.latest.date;
+    if (d && daysBetween(d, DATA.today) > 4) add(`${o.name}: newest complete data is from ${dLong(d)}.`, true);
+  }
+})();
+
+// ---------- tiles ----------
+(function tiles() {
+  const box = document.getElementById("tiles");
+  for (const m of DATA.metals) {
+    const L = m.latest, P = m.prev;
+    const card = el("article", { class: "card", "aria-label": `${m.name} import arbitrage` });
+    card.append(el("div", { class: "tile-head" }, el("span", { class: "tile-name", text: m.name }), pill(L ? L.arb_spot : null)));
+    card.append(el("div", { class: "tile-label", text: "Import P/L · spot (SHFE 1st month vs LME cash)" }));
+    card.append(el("div", { class: "tile-value" }, L ? fmt(L.arb_spot, 0, true) : "—", el("span", { class: "unit", text: "CNY/t" })));
+    const delta = L && P && L.arb_spot !== null && P.arb_spot !== null ? `${fmt(L.arb_spot - P.arb_spot, 0, true)} vs ${dShort(P.date)}` : "No previous day";
+    card.append(el("div", { class: "tile-delta", text: delta }));
+    const kv = el("dl", { class: "kv" });
+    const row = (k, v) => { kv.append(el("dt", { text: k }), el("dd", { text: v })); };
+    if (L) {
+      row("SHFE/LME ratio", `${fmt(L.ratio_spot, 3)}  (breakeven ${fmt(L.be_ratio_spot, 3)})`);
+      row("Import P/L · 3M", `${fmt(L.arb_3m, 0, true)} CNY/t`);
+      row("Breakeven premium", `${usd(L.be_premium_spot)} vs your ${usd(L.premium_usd)}`);
+      row("LME cash–3M", `${fmt(L.lme_c3m, 2, true)} $/t`);
+      row("SHFE 1st–2nd month", `${fmt(L.shfe_m1_m2, 0, true)} CNY/t`);
+    }
+    card.append(kv);
+    if (L) card.append(el("div", { class: "tile-foot", text: `As of ${dLong(L.date)} · ${L.shfe_m1_contract || "SHFE —"} vs LME cash` }));
+    box.append(card);
+  }
+})();
+
+// ---------- snapshot table ----------
+(function snapshot() {
+  const t = document.getElementById("snapshot");
+  const cols = [
+    ["Metal", (m) => m.name],
+    ["Date", (m, L) => dShort(L.date)],
+    ["LME cash $", (m, L) => fmt(L.lme_cash, 2)],
+    ["LME 3M $", (m, L) => fmt(L.lme_3m, 2)],
+    ["Cash–3M $", (m, L) => fmt(L.lme_c3m, 2, true)],
+    ["LME stock t", (m, L) => fmt(L.lme_stock)],
+    ["SHFE 1st ¥", (m, L) => `${fmt(L.shfe_m1)}`],
+    ["SHFE 3rd ¥", (m, L) => fmt(L.shfe_m3)],
+    ["1st–2nd ¥", (m, L) => fmt(L.shfe_m1_m2, 0, true)],
+    ["1st–3rd ¥", (m, L) => fmt(L.shfe_m1_m3, 0, true)],
+    ["Ratio", (m, L) => fmt(L.ratio_spot, 3)],
+    ["B/E ratio", (m, L) => fmt(L.be_ratio_spot, 3)],
+    ["P/L spot ¥", (m, L) => fmt(L.arb_spot, 0, true)],
+    ["P/L 3M ¥", (m, L) => fmt(L.arb_3m, 0, true)],
+    ["SHFE−LME $", (m, L) => fmt(L.shfe_lme_spread_usd, 0, true)],
+  ];
+  const thead = el("thead"), tr = el("tr");
+  cols.forEach(([h]) => tr.append(el("th", { scope: "col", text: h })));
+  thead.append(tr); t.append(thead);
+  const tb = el("tbody");
+  for (const m of DATA.metals) {
+    const L = m.latest || {};
+    const r = el("tr");
+    cols.forEach(([, f], i) => r.append(el(i === 0 ? "th" : "td", i === 0 ? { scope: "row", text: f(m, L) } : { text: m.latest ? f(m, L) : "—" })));
+    tb.append(r);
+  }
+  t.append(tb);
+})();
+
+// ---------- assumptions + sources ----------
+(function assumptions() {
+  const t = document.getElementById("assumptions");
+  const head = el("tr"); ["Metal", "CIF premium $/t", "Updated", "Duty", "Misc ¥/t"].forEach((h) => head.append(el("th", { scope: "col", text: h })));
+  t.append(el("thead", {}, head));
+  const tb = el("tbody");
+  for (const m of DATA.metals) {
+    const stale = m.premium_age_days !== null && m.premium_age_days > DATA.stale_days;
+    tb.append(el("tr", {},
+      el("th", { scope: "row", text: m.name }),
+      el("td", { text: fmt(m.premium_usd, 0) }),
+      el("td", {}, m.premium_as_of ? dShort(m.premium_as_of) : "—", stale ? el("span", { class: "flag", text: " · stale" }) : null),
+      el("td", { text: `${fmt(m.duty * 100, 1)}%` }),
+      el("td", { text: fmt(m.misc_cny, 0) })));
+  }
+  t.append(tb);
+
+  const ul = document.getElementById("sources");
+  const log = DATA.log || {};
+  const line = (name, v) => {
+    if (!v) return;
+    const ok = v.ok !== false;
+    ul.append(el("li", {}, el("span", { class: ok ? "ok" : "flag", text: ok ? "✓ " : "✗ " }), `${name}: `,
+      ok ? `${v.source || ""}${v.last ? ` · latest ${dShort(v.last)}` : ""}${v.note ? ` (${v.note})` : ""}` : v.error));
+  };
+  for (const [k, v] of Object.entries(log.lme || {})) line(`LME ${k.toUpperCase()}`, v);
+  line("SHFE", log.shfe); line("INE", log.ine);
+  for (const v of Object.values(log.intl || {})) line(v.label || "International", v);
+  line("USD/CNY", log.fx);
+  if (log.run_utc) ul.append(el("li", { text: `Run at ${log.run_utc.replace("T", " ").replace("+00:00", " UTC")}` }));
+  if (!ul.children.length) ul.append(el("li", { text: "No run log yet." }));
+})();
+
+// ---------- precious metals & crude: tiles, snapshot, assumptions ----------
+const ODP = { gold: { cn: 2, intl: 2, prem: 2 }, silver: { cn: 0, intl: 3, prem: 2 }, crude: { cn: 1, intl: 2, prem: 2 } };
+function ostatus(o, pl) {
+  if (pl === null || pl === undefined) return { cls: "na", dot: "○", text: "No data" };
+  if (o.kind === "crude") return pl >= 0 ? { cls: "neutral", dot: "▲", text: "SC above Brent" } : { cls: "neutral", dot: "▼", text: "SC below Brent" };
+  if (pl > o.near_band) return { cls: "open", dot: "▲", text: "Window open" };
+  if (pl < -o.near_band) return { cls: "closed", dot: "▼", text: "Window closed" };
+  return { cls: "near", dot: "●", text: "Near breakeven" };
+}
+function opill(o, L) {
+  const v = L ? (o.kind === "crude" ? L.premium_usd - L.cost_usd : L.arb_cn) : null;
+  const s = ostatus(o, v === null || Number.isNaN(v) ? null : v);
+  return el("span", { class: `pill ${s.cls}` }, el("span", { class: "dot", "aria-hidden": "true", text: s.dot }), s.text);
+}
+(function tiles2() {
+  const box = document.getElementById("tiles2");
+  for (const o of DATA.others || []) {
+    const L = o.latest, P = o.prev, d = ODP[o.kind], u = o.units;
+    const card = el("article", { class: "card", "aria-label": `${o.name} tracker` });
+    card.append(el("div", { class: "tile-head" }, el("span", { class: "tile-name", text: o.name }), opill(o, L)));
+    const label = o.kind === "crude" ? `SC − ${o.intl_label} (SC most-active in USD)` : `Shanghai premium (China ex-VAT vs ${o.intl_label})`;
+    card.append(el("div", { class: "tile-label", text: label }));
+    card.append(el("div", { class: "tile-value" }, L ? fmt(L.premium_usd, d.prem, true) : "—", el("span", { class: "unit", text: u.intl })));
+    const delta = L && P && L.premium_usd !== null && P.premium_usd !== null ? `${fmt(L.premium_usd - P.premium_usd, d.prem, true)} vs ${dShort(P.date)}` : "No previous day";
+    card.append(el("div", { class: "tile-delta", text: delta }));
+    const kv = el("dl", { class: "kv" });
+    const row = (k, v) => { kv.append(el("dt", { text: k }), el("dd", { text: v })); };
+    if (L) {
+      const exch = o.kind === "crude" ? "INE" : "SHFE";
+      row(`${exch} ${L.cn_main_contract || "main"}`, `${fmt(L.cn_main, d.cn)} ${u.cn}`);
+      if (o.kind === "crude") {
+        row("SC in USD", `$${fmt(L.cn_usd, 2)}`);
+        row(o.intl_label, `$${fmt(L.intl, 2)}`);
+        if (o.intl2_label) row(`${o.intl_label} − ${o.intl2_label}`, `${fmt(L.intl_spread, 2, true)} $/bbl  (${o.intl2_label} $${fmt(L.intl2, 2)})`);
+      } else {
+        row(o.intl_label, `$${fmt(L.intl, d.intl)}`);
+        row("Import P/L", `${fmt(L.arb_cn, d.cn, true)} ${u.cn}`);
+      }
+      row(`Main − next${L.cn_next_contract ? ` (${L.cn_next_contract})` : ""}`, `${fmt(L.cn_spread, d.cn, true)} ${u.cn}`);
+    }
+    card.append(kv);
+    if (L) card.append(el("div", { class: "tile-foot", text: `As of ${dLong(L.date)} · USD/CNY ${fmt(L.usdcny, 4)}` }));
+    box.append(card);
+  }
+})();
+(function snapshot2() {
+  const t = document.getElementById("snapshot2");
+  const cols = [
+    ["Instrument", (o) => o.name],
+    ["Date", (o, L) => dShort(L.date)],
+    ["China main", (o, L) => fmt(L.cn_main, ODP[o.kind].cn)],
+    ["Contract", (o, L) => L.cn_main_contract || "—"],
+    ["China unit", (o) => o.units.cn],
+    ["International", (o, L) => fmt(L.intl, ODP[o.kind].intl)],
+    ["Intl unit", (o) => o.units.intl],
+    ["Premium $", (o, L) => fmt(L.premium_usd, ODP[o.kind].prem, true)],
+    ["Import P/L", (o, L) => (o.kind === "crude" ? "—" : fmt(L.arb_cn, ODP[o.kind].cn, true))],
+    ["Main − next", (o, L) => fmt(L.cn_spread, ODP[o.kind].cn, true)],
+  ];
+  const tr = el("tr"); cols.forEach(([h]) => tr.append(el("th", { scope: "col", text: h.trim() })));
+  t.append(el("thead", {}, tr));
+  const tb = el("tbody");
+  for (const o of DATA.others || []) {
+    const L = o.latest || {};
+    const r = el("tr");
+    cols.forEach(([, f], i) => r.append(el(i === 0 ? "th" : "td", i === 0 ? { scope: "row", text: f(o, L) } : { text: o.latest ? f(o, L) : "—" })));
+    tb.append(r);
+  }
+  t.append(tb);
+})();
+(function assumptions2() {
+  const t = document.getElementById("assumptions2");
+  if (!(DATA.others || []).length) return;
+  const head = el("tr"); ["Instrument", "Compared with", "Your cost", "Duty", "VAT"].forEach((h) => head.append(el("th", { scope: "col", text: h })));
+  t.append(el("thead", {}, head));
+  const tb = el("tbody");
+  for (const o of DATA.others) {
+    tb.append(el("tr", {},
+      el("th", { scope: "row", text: o.name }),
+      el("td", { text: o.intl_label }),
+      el("td", { text: `$${fmt(o.cost_usd, 2)} ${o.units.intl.replace("USD", "")}` }),
+      el("td", { text: `${fmt(o.duty * 100, 1)}%` }),
+      el("td", { text: `${fmt(o.vat * 100, 0)}%` })));
+  }
+  t.append(tb);
+})();
+
+// ---------- charts ----------
+const BASE_CHARTS = [
+  { id: "pl", title: "Import P/L", sub: "CNY/t · above zero = import window open", dp: 0, signed: true,
+    sets: [{ key: "arb_spot", label: "Spot", color: "--series-1" }, { key: "arb_3m", label: "3M", color: "--series-2" }] },
+  { id: "ratio", title: "SHFE/LME price ratio", sub: "SHFE 1st month ÷ LME cash, against the breakeven ratio", dp: 3, tickDp: 2,
+    sets: [{ key: "ratio_spot", label: "Ratio", color: "--series-1" }, { key: "be_ratio_spot", label: "Breakeven", color: "--ref" }] },
+  { id: "bep", title: "Breakeven CIF premium", sub: "USD/t · the most an importer could pay, against your premium", dp: 0,
+    sets: [{ key: "be_premium_spot", label: "Breakeven", color: "--series-1" }, { key: "premium_usd", label: "Your premium", color: "--ref" }] },
+  { id: "lmec3m", title: "LME cash–3M spread", sub: "USD/t · positive = backwardation", dp: 2, tickDp: 0, signed: true,
+    sets: [{ key: "lme_c3m", label: "Cash–3M", color: "--series-1" }] },
+  { id: "shfecal", title: "SHFE calendar spreads", sub: "CNY/t · near minus far month", dp: 0, signed: true,
+    sets: [{ key: "shfe_m1_m2", label: "1st–2nd", color: "--series-1" }, { key: "shfe_m1_m3", label: "1st–3rd", color: "--series-2" }] },
+  { id: "stock", title: "LME stocks", sub: "tonnes", dp: 0, compact: true,
+    sets: [{ key: "lme_stock", label: "Stock", color: "--series-1" }] },
+];
+function chartDefs(inst) {
+  if (inst.kind === "base") return BASE_CHARTS;
+  const u = inst.units, d = ODP[inst.kind];
+  if (inst.kind === "crude") {
+    const sets2 = [{ key: "cn_usd", label: "SC", color: "--series-1" }, { key: "intl", label: inst.intl_label, color: "--series-2" }];
+    if (inst.intl2_label) sets2.push({ key: "intl2", label: inst.intl2_label, color: "--series-3" });
+    const defs = [
+      { id: "prem", title: `SC − ${inst.intl_label}`, sub: "USD/bbl · SC most-active converted at USD/CNY, against your adjustment", dp: 2, tickDp: 0, signed: true,
+        sets: [{ key: "premium_usd", label: `SC − ${inst.intl_label}`, color: "--series-1" }, { key: "cost_usd", label: "Your adjustment", color: "--ref" }] },
+      { id: "px", title: "Crude prices", sub: "USD/bbl", dp: 2, tickDp: 0, sets: sets2 },
+    ];
+    if (inst.intl2_label) defs.push({ id: "bw", title: `${inst.intl_label} − ${inst.intl2_label}`, sub: "USD/bbl", dp: 2, tickDp: 0, signed: true,
+      sets: [{ key: "intl_spread", label: `${inst.intl_label} − ${inst.intl2_label}`, color: "--series-1" }] });
+    defs.push({ id: "cal", title: "SC calendar spread", sub: "CNY/bbl · most-active minus next most-active (positive = backwardation)", dp: 1, tickDp: 0, signed: true,
+      sets: [{ key: "cn_spread", label: "Main − next", color: "--series-1" }] });
+    return defs;
+  }
+  return [
+    { id: "prem", title: "Shanghai premium", sub: `${u.intl} · China price ex-VAT vs ${inst.intl_label}, against your import cost`, dp: d.prem, tickDp: 0, signed: true,
+      sets: [{ key: "premium_usd", label: "Premium", color: "--series-1" }, { key: "cost_usd", label: "Your cost", color: "--ref" }] },
+    { id: "pl", title: "Import P/L", sub: `${u.cn} · above zero = import window open`, dp: d.cn, tickDp: 0, signed: true,
+      sets: [{ key: "arb_cn", label: "Import P/L", color: "--series-1" }] },
+    { id: "px", title: `SHFE vs ${inst.intl_label}`, sub: `${u.cn} · international converted at USD/CNY, VAT added`, dp: d.cn, tickDp: 0,
+      sets: [{ key: "cn_main", label: "SHFE most-active", color: "--series-1" }, { key: "intl_cn", label: inst.intl_label, color: "--series-2" }] },
+    { id: "cal", title: "SHFE calendar spread", sub: `${u.cn} · most-active minus next most-active (positive = backwardation)`, dp: d.cn, tickDp: d.cn ? 1 : 0, signed: true,
+      sets: [{ key: "cn_spread", label: "Main − next", color: "--series-1" }] },
+  ];
+}
+
+const INSTRUMENTS = [...DATA.metals.map((m) => ({ ...m, kind: "base" })), ...(DATA.others || [])];
+const RANGES = [["1M", 31], ["3M", 92], ["6M", 183], ["1Y", 366], ["All", 99999]];
+let state = { inst: INSTRUMENTS[0] ? INSTRUMENTS[0].code : null, range: 92 };
+try {
+  const s = JSON.parse(localStorage.getItem("arbdash") || "{}");
+  if (s.inst && INSTRUMENTS.some((m) => m.code === s.inst)) state.inst = s.inst;
+  if (s.range) state.range = s.range;
+} catch (e) {}
+function save() { try { localStorage.setItem("arbdash", JSON.stringify(state)); } catch (e) {} }
+
+function css(name) { return getComputedStyle(document.querySelector(".viz-root")).getPropertyValue(name).trim(); }
+
+const crosshair = {
+  id: "crosshair",
+  afterDatasetsDraw(chart) {
+    const a = chart.tooltip && chart.tooltip.getActiveElements();
+    if (!a || !a.length) return;
+    const x = a[0].element.x, { top, bottom } = chart.chartArea, ctx = chart.ctx;
+    ctx.save(); ctx.strokeStyle = css("--baseline"); ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(Math.round(x) + 0.5, top); ctx.lineTo(Math.round(x) + 0.5, bottom); ctx.stroke(); ctx.restore();
+  },
+};
+const endLabels = {
+  id: "endLabels",
+  afterDatasetsDraw(chart, args, opts) {
+    const ctx = chart.ctx, placed = [];
+    const items = [];
+    chart.data.datasets.forEach((ds, i) => {
+      const meta = chart.getDatasetMeta(i);
+      if (meta.hidden) return;
+      let j = ds.data.length - 1; while (j >= 0 && (ds.data[j] === null || ds.data[j] === undefined)) j--;
+      if (j < 0) return;
+      const p = meta.data[j]; if (!p) return;
+      items.push({ x: p.x, y: p.y, v: ds.data[j], color: ds.borderColor });
+    });
+    items.sort((a, b) => a.y - b.y);
+    ctx.save(); ctx.font = "12px system-ui, -apple-system, 'Segoe UI', sans-serif"; ctx.textBaseline = "middle";
+    for (const it of items) {
+      if (placed.some((y) => Math.abs(y - it.y) < 14)) continue; // collision: legend + tooltip carry it
+      placed.push(it.y);
+      ctx.fillStyle = it.color; ctx.beginPath(); ctx.arc(it.x, it.y, 4, 0, Math.PI * 2); ctx.fill();
+      ctx.lineWidth = 2; ctx.strokeStyle = css("--surface-1"); ctx.stroke();
+      ctx.fillStyle = css("--text-secondary");
+      ctx.fillText(opts.fmt(it.v), it.x + 8, it.y);
+    }
+    ctx.restore();
+  },
+};
+
+let chartObjs = {}, chartsFor = null, defsNow = [];
+function mountCharts(inst) {
+  for (const ch of Object.values(chartObjs)) ch.destroy();
+  chartObjs = {};
+  const box = document.getElementById("charts"); box.replaceChildren();
+  defsNow = chartDefs(inst);
+  for (const c of defsNow) {
+    const canvas = el("canvas", { role: "img", "aria-label": `${inst.name}: ${c.title} chart` });
+    box.append(el("div", { class: "card" }, el("h3", { class: "chart-title", text: c.title }), el("p", { class: "chart-sub", text: c.sub }), el("div", { class: "chart-box" }, canvas)));
+    const valueFmt = (v) => (c.compact ? compact(v) : fmt(v, c.dp, c.signed));
+    const tickDp = c.tickDp !== undefined ? c.tickDp : 0;
+    chartObjs[c.id] = new Chart(canvas, {
+      type: "line",
+      data: { labels: [], datasets: c.sets.map((s) => ({ label: s.label, data: [], _color: s.color })) },
+      options: {
+        responsive: true, maintainAspectRatio: false, animation: false, spanGaps: true,
+        interaction: { mode: "index", intersect: false },
+        layout: { padding: { right: 62, top: 6 } },
+        elements: { line: { borderWidth: 2, tension: 0, borderCapStyle: "round", borderJoinStyle: "round" }, point: { radius: 0, hoverRadius: 4, hitRadius: 12, hoverBorderWidth: 2 } },
+        scales: {
+          x: { grid: { display: false }, border: { color: "#ccc" }, ticks: { maxTicksLimit: 6, maxRotation: 0, autoSkipPadding: 12, callback(v) { return dShort(this.getLabelForValue(v)); } } },
+          y: { border: { display: false }, ticks: { maxTicksLimit: 6, callback: (v, i, ticks) => {
+            if (c.compact) return compact(v);
+            const step = ticks.length > 1 ? Math.abs(ticks[1].value - ticks[0].value) : 1;
+            const dp = Math.max(tickDp, step >= 1 ? 0 : step >= 0.1 ? 1 : step >= 0.01 ? 2 : 3);
+            return fmt(v, dp, c.signed);
+          } } },
+        },
+        plugins: {
+          legend: { display: c.sets.length > 1, align: "start", labels: { usePointStyle: true, pointStyle: "line", boxWidth: 18, padding: 12, font: { size: 12 } } },
+          tooltip: {
+            usePointStyle: true, padding: 10, boxPadding: 4, borderWidth: 1, cornerRadius: 8, displayColors: true,
+            callbacks: {
+              title: (items) => dLong(items[0].label),
+              label: (it) => ` ${valueFmt(it.parsed.y)}   ${it.dataset.label}`,
+              labelPointStyle: () => ({ pointStyle: "line", rotation: 0 }),
+            },
+          },
+          endLabels: { fmt: valueFmt },
+        },
+      },
+      plugins: [crosshair, endLabels],
+    });
+  }
+  chartsFor = inst.code;
+  applyTheme();
+}
+
+function applyTheme() {
+  if (!window.Chart) return;
+  const grid = css("--grid"), base = css("--baseline"), muted = css("--muted"), surf = css("--surface-1");
+  Chart.defaults.color = css("--text-secondary");
+  Chart.defaults.font.family = "system-ui, -apple-system, 'Segoe UI', sans-serif";
+  for (const ch of Object.values(chartObjs)) {
+    const o = ch.options;
+    o.scales.x.border.color = base; o.scales.x.ticks.color = muted;
+    o.scales.y.ticks.color = muted;
+    o.scales.y.grid.color = (ctx) => (ctx.tick && ctx.tick.value === 0 ? base : grid);
+    o.plugins.legend.labels.color = css("--text-secondary");
+    Object.assign(o.plugins.tooltip, { backgroundColor: surf, borderColor: css("--border"), titleColor: css("--text-secondary"), bodyColor: css("--text-primary") });
+    ch.data.datasets.forEach((ds) => {
+      const col = css(ds._color);
+      ds.borderColor = col; ds.backgroundColor = col; ds.pointHoverBackgroundColor = col; ds.pointHoverBorderColor = surf;
+      ds.borderWidth = ds._color === "--ref" ? 1.5 : 2;
+    });
+    ch.update("none");
+  }
+}
+
+function currentInst() { return INSTRUMENTS.find((m) => m.code === state.inst) || INSTRUMENTS[0]; }
+function sliceIdx(dates) {
+  if (!dates.length) return 0;
+  const last = new Date(dates[dates.length - 1]); const cut = new Date(last - state.range * 864e5);
+  let i = 0; while (i < dates.length && new Date(dates[i]) < cut) i++;
+  return i;
+}
+function refresh() {
+  const m = currentInst(); if (!m) return;
+  const S = m.series, i0 = sliceIdx(S.date);
+  if (window.Chart) {
+    if (chartsFor !== m.code) mountCharts(m);
+    for (const c of defsNow) {
+      const ch = chartObjs[c.id];
+      ch.data.labels = S.date.slice(i0);
+      c.sets.forEach((s, k) => { ch.data.datasets[k].data = (S[s.key] || []).slice(i0); });
+      ch.update("none");
+    }
+  }
+  for (const b of document.querySelectorAll("#metalSeg button")) b.setAttribute("aria-pressed", String(b.dataset.v === state.inst));
+  for (const b of document.querySelectorAll("#rangeSeg button")) b.setAttribute("aria-pressed", String(+b.dataset.v === state.range));
+  renderTable(m, i0);
+}
+
+function tableCols(m) {
+  if (m.kind === "base") return [
+    ["Date", "date", (v) => dLong(v)], ["LME cash", "lme_cash", (v) => fmt(v, 2)], ["LME 3M", "lme_3m", (v) => fmt(v, 2)],
+    ["Cash–3M", "lme_c3m", (v) => fmt(v, 2, true)], ["SHFE 1st", "shfe_m1", (v) => fmt(v)], ["Contract", "shfe_m1_contract", (v) => v || "—"],
+    ["SHFE 3rd", "shfe_m3", (v) => fmt(v)], ["1st–2nd", "shfe_m1_m2", (v) => fmt(v, 0, true)], ["1st–3rd", "shfe_m1_m3", (v) => fmt(v, 0, true)],
+    ["USD/CNY", "usdcny", (v) => fmt(v, 4)], ["Ratio", "ratio_spot", (v) => fmt(v, 3)], ["B/E ratio", "be_ratio_spot", (v) => fmt(v, 3)],
+    ["P/L spot", "arb_spot", (v) => fmt(v, 0, true)], ["P/L 3M", "arb_3m", (v) => fmt(v, 0, true)],
+    ["B/E prem $", "be_premium_spot", (v) => fmt(v, 0)], ["Prem used $", "premium_usd", (v) => fmt(v, 0)], ["LME stock", "lme_stock", (v) => fmt(v)],
+  ];
+  const d = ODP[m.kind], u = m.units;
+  if (m.kind === "crude") return [
+    ["Date", "date", (v) => dLong(v)], [`SC ${u.cn}`, "cn_main", (v) => fmt(v, d.cn)], ["Contract", "cn_main_contract", (v) => v || "—"],
+    ["SC $", "cn_usd", (v) => fmt(v, 2)], [m.intl_label, "intl", (v) => fmt(v, 2)], [m.intl2_label || "—", "intl2", (v) => fmt(v, 2)],
+    [`SC − ${m.intl_label}`, "premium_usd", (v) => fmt(v, 2, true)], [`${m.intl_label} − ${m.intl2_label || ""}`, "intl_spread", (v) => fmt(v, 2, true)],
+    ["Main − next", "cn_spread", (v) => fmt(v, d.cn, true)], ["Next", "cn_next_contract", (v) => v || "—"], ["USD/CNY", "usdcny", (v) => fmt(v, 4)],
+  ];
+  return [
+    ["Date", "date", (v) => dLong(v)], [`SHFE ${u.cn}`, "cn_main", (v) => fmt(v, d.cn)], ["Contract", "cn_main_contract", (v) => v || "—"],
+    [`${m.intl_label} $`, "intl", (v) => fmt(v, d.intl)], ["USD/CNY", "usdcny", (v) => fmt(v, 4)], [`Intl in ${u.cn}`, "intl_cn", (v) => fmt(v, d.cn)],
+    ["Premium $", "premium_usd", (v) => fmt(v, d.prem, true)], ["Import P/L", "arb_cn", (v) => fmt(v, d.cn, true)],
+    ["Main − next", "cn_spread", (v) => fmt(v, d.cn, true)], ["Next", "cn_next_contract", (v) => v || "—"], ["Cost used $", "cost_usd", (v) => fmt(v, 2)],
+  ];
+}
+function renderTable(m, i0) {
+  const label = RANGES.find(([, n]) => n === state.range);
+  document.getElementById("tableLabel").textContent = `${m.name}, ${label ? label[0] : ""}`;
+  const t = document.getElementById("dataTable"); t.replaceChildren();
+  const cols = tableCols(m);
+  const hr = el("tr"); cols.forEach(([h]) => hr.append(el("th", { scope: "col", text: h })));
+  t.append(el("thead", {}, hr));
+  const tb = el("tbody"), S = m.series;
+  for (let i = S.date.length - 1; i >= i0; i--) {
+    const r = el("tr");
+    cols.forEach(([, k, f], j) => r.append(el(j === 0 ? "th" : "td", j === 0 ? { scope: "row", text: f(S[k][i]) } : { text: f(S[k] ? S[k][i] : null) })));
+    tb.append(r);
+  }
+  t.append(tb);
+}
+
+function buildFilters() {
+  const ms = document.getElementById("metalSeg");
+  for (const m of INSTRUMENTS) {
+    const b = el("button", { type: "button", "data-v": m.code, text: m.name });
+    b.addEventListener("click", () => { state.inst = m.code; save(); refresh(); });
+    ms.append(b);
+  }
+  const rs = document.getElementById("rangeSeg");
+  for (const [lab, n] of RANGES) {
+    const b = el("button", { type: "button", "data-v": String(n), text: lab });
+    b.addEventListener("click", () => { state.range = n; save(); refresh(); });
+    rs.append(b);
+  }
+}
+
+// ---------- theme toggle ----------
+const THEMES = ["auto", "light", "dark"];
+let theme = "auto";
+try { theme = localStorage.getItem("arbdash-theme") || "auto"; } catch (e) {}
+function setTheme(t) {
+  theme = t;
+  if (t === "auto") delete document.documentElement.dataset.theme; else document.documentElement.dataset.theme = t;
+  document.getElementById("themeBtn").textContent = `Theme: ${t}`;
+  try { localStorage.setItem("arbdash-theme", t); } catch (e) {}
+  applyTheme();
+}
+document.getElementById("themeBtn").addEventListener("click", () => setTheme(THEMES[(THEMES.indexOf(theme) + 1) % 3]));
+window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => { if (theme === "auto") applyTheme(); });
+
+buildFilters();
+if (!window.Chart) document.getElementById("charts").append(el("div", { class: "banner err", text: "Chart library failed to load (assets/chart.umd.min.js)." }));
+setTheme(theme);
+refresh();
+</script>
+</body>
+</html>
