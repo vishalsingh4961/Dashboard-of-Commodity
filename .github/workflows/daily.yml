@@ -25,7 +25,9 @@ concurrency:
 jobs:
   update:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 50
+    env:
+      PYTHONUNBUFFERED: "1"
     steps:
       - uses: actions/checkout@v4
 
@@ -38,6 +40,7 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Fetch, calculate, render
+        timeout-minutes: 40
         run: |
           if [ "${{ github.event.inputs.recompute }}" = "true" ]; then
             python -m arbdash.update --recompute
@@ -46,6 +49,7 @@ jobs:
           fi
 
       - name: Commit data and dashboard
+        if: always()   # keep whatever was downloaded even if a source was slow or failed
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"

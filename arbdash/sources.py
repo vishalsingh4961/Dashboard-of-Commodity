@@ -17,7 +17,9 @@ from __future__ import annotations
 import datetime as dt
 import json
 import re
+import sys
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from io import StringIO
 
 import pandas as pd
@@ -27,11 +29,17 @@ UA = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
     "(KHTML, like Gecko) Chrome/124.0 Safari/537.36"
 )
-TIMEOUT = 30
+TIMEOUT = 20
+_T0 = time.time()
 
 
 class SourceError(RuntimeError):
     pass
+
+
+def log(msg: str) -> None:
+    """Progress line for the GitHub Actions log."""
+    print(f"[{time.time() - _T0:6.1f}s] {msg}", file=sys.stderr, flush=True)
 
 
 def _get(url: str, *, params=None, headers=None, retries: int = 3, pause: float = 2.0) -> requests.Response:
@@ -42,7 +50,7 @@ def _get(url: str, *, params=None, headers=None, retries: int = 3, pause: float 
     last = None
     for attempt in range(retries):
         try:
-            r = requests.get(url, params=params, headers=h, timeout=TIMEOUT)
+            r = requests.get(url, params=params, headers=h, timeout=(10, TIMEOUT))
             if r.status_code == 200:
                 return r
             if r.status_code == 404:
@@ -271,23 +279,56 @@ def fetch_shfe_day(day: dt.date, codes: set[str], exchange: str = "shfe") -> pd.
     return df
 
 
-def fetch_shfe_range(days: list[dt.date], codes: set[str], exchange: str = "shfe") -> pd.DataFrame:
-    frames, failures = [], 0
-    for d in days:
-        if d.weekday() >= 5:
-            continue
+def fetch_shfe_range(days: list[dt.date], codes: set[str], exchange: str = "shfe", workers: int = 8,
+                     budget_s: float = 600) -> pd.DataFrame:
+    """Fetch many trading days. Probes the most recent weekdays first so an unreachable
+    exchange fails fast (and the caller can fall back), then downloads the rest in parallel."""
+    weekdays = [d for d in days if d.weekday() < 5]
+    if not weekdays:
+        raise SourceError(f"{exchange.upper()}: no weekdays in range")
+    frames, errors = [], []
+
+    # 1) probe: newest weekdays, stop at the first success
+    probe = weekdays[::-1][:4]
+    ok = False
+    for d in probe:
         try:
             df = fetch_shfe_day(d, codes, exchange)
-        except SourceError:
-            failures += 1
-            if failures >= 3 and not frames:
-                raise  # source looks down, let the caller fall back
-            continue
-        if not df.empty:
-            frames.append(df)
-        time.sleep(0.4)
+            ok = True
+            if not df.empty:
+                frames.append(df)
+            break
+        except SourceError as e:
+            errors.append(str(e))
+    if not ok:
+        raise SourceError(f"{exchange.upper()} unreachable: {errors[-1] if errors else 'no response'}")
+    log(f"{exchange.upper()}: reachable, fetching {len(weekdays)} days with {workers} workers")
+
+    # 2) the rest in parallel
+    rest = [d for d in weekdays if d not in probe[: len(errors) + 1]]
+    done, t0 = 0, time.time()
+    pool = ThreadPoolExecutor(max_workers=workers)
+    try:
+        futs = {pool.submit(fetch_shfe_day, d, codes, exchange): d for d in sorted(rest, reverse=True)}
+        for f in as_completed(futs):
+            done += 1
+            if time.time() - t0 > budget_s:
+                log(f"{exchange.upper()}: time budget reached after {done}/{len(rest)} days; the rest next run")
+                break
+            try:
+                df = f.result()
+                if not df.empty:
+                    frames.append(df)
+            except SourceError as e:
+                errors.append(f"{futs[f]}: {e}")
+            if done % 25 == 0:
+                log(f"{exchange.upper()}: {done}/{len(rest)} days")
+    finally:
+        pool.shutdown(wait=False, cancel_futures=True)
     if not frames:
-        raise SourceError(f"{exchange.upper()}: no data returned")
+        raise SourceError(f"{exchange.upper()}: no data returned ({len(errors)} errors)")
+    if errors:
+        log(f"{exchange.upper()}: {len(errors)} days failed, e.g. {errors[-1][:160]}")
     return pd.concat(frames, ignore_index=True)
 
 
@@ -308,9 +349,15 @@ def _add_months(d: dt.date, k: int) -> tuple[int, int]:
 def fetch_shfe_sina(codes: set[str], start: dt.date) -> pd.DataFrame:
     today = dt.date.today()
     tag = today.strftime("%Y_%m_%d")
-    frames = []
-    for code in codes:
+    frames, attempts, failures, t0 = [], 0, 0, time.time()
+    for code in sorted(codes):
         for k in range(0, 13):
+            if time.time() - t0 > 300:
+                log("Sina SHFE fallback: time budget reached")
+                break
+            if attempts >= 3 and failures == attempts:
+                raise SourceError("Sina unreachable")
+            attempts += 1
             y, m = _add_months(today, k)
             month = f"{y % 100:02d}{m:02d}"
             sym = f"{code.upper()}{month}"
@@ -319,9 +366,10 @@ def fetch_shfe_sina(codes: set[str], start: dt.date) -> pd.DataFrame:
                     SINA_INNER_URL.format(sym=sym, tag=tag),
                     params={"symbol": sym, "type": tag},
                     headers={"Referer": "https://finance.sina.com.cn/"},
-                    retries=2,
+                    retries=1,
                 )
             except SourceError:
+                failures += 1
                 continue
             txt = r.text
             i, j = txt.find("["), txt.rfind("]")

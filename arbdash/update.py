@@ -84,6 +84,7 @@ def fetch_all(cfg: dict, today: dt.date) -> dict:
     default_start = today - dt.timedelta(days=backfill)
 
     # ---- LME ------------------------------------------------------------
+    sources.log("LME: start")
     lme_old = read_csv("lme")
     frames = []
     for code, m in cfg["metals"].items():
@@ -107,6 +108,7 @@ def fetch_all(cfg: dict, today: dt.date) -> dict:
         if not df.empty:
             df["metal"] = code
             frames.append(df)
+        sources.log(f"LME {code}: {log['lme'][code]}")
     upsert("lme", pd.concat(frames, ignore_index=True) if frames else None)
 
     # ---- SHFE / INE (all Chinese futures go into shfe.csv) ----------------
@@ -124,6 +126,7 @@ def fetch_all(cfg: dict, today: dt.date) -> dict:
         last = _last_date(old)
         start = (last - dt.timedelta(days=4)) if last else default_start
         days = [start + dt.timedelta(days=i) for i in range((today - start).days + 1)]
+        sources.log(f"{exch.upper()}: {sorted(codes)} from {start}")
         try:
             df = sources.fetch_shfe_range(days, codes, exch)
             log[exch] = {"ok": True, "source": exch, "rows": len(df), "last": str(df["date"].max())}
@@ -135,6 +138,7 @@ def fetch_all(cfg: dict, today: dt.date) -> dict:
             except Exception as e2:  # noqa: BLE001
                 df = pd.DataFrame()
                 log[exch] = {"ok": False, "error": f"{msg}; sina: {e2}"}
+        sources.log(f"{exch.upper()}: {log[exch]}")
         if not df.empty:
             df["metal"] = df["metal"].map(code_map)
             upsert("shfe", df)
@@ -157,6 +161,7 @@ def fetch_all(cfg: dict, today: dt.date) -> dict:
                                        **({"note": "; ".join(errs)} if errs else {})}
             except Exception as e:  # noqa: BLE001
                 log["intl"][series] = {"ok": False, "label": label, "error": str(e)}
+            sources.log(f"{label}: {log['intl'][series]}")
     upsert("intl", pd.concat(frames, ignore_index=True) if frames else None)
 
     # ---- FX -------------------------------------------------------------
@@ -174,6 +179,7 @@ def fetch_all(cfg: dict, today: dt.date) -> dict:
         except Exception as e2:  # noqa: BLE001
             df = pd.DataFrame()
             log["fx"] = {"ok": False, "error": f"{msg}; er-api: {e2}"}
+    sources.log(f"FX: {log['fx']}")
     upsert("fx", df)
     return log
 
