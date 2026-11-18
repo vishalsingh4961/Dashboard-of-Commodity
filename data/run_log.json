@@ -1,0 +1,66 @@
+{
+  "lme": {
+    "cu": {
+      "ok": true,
+      "source": "westmetall",
+      "rows": 126,
+      "last": "2026-11-17"
+    },
+    "al": {
+      "ok": true,
+      "source": "westmetall",
+      "rows": 126,
+      "last": "2026-11-17"
+    },
+    "zn": {
+      "ok": true,
+      "source": "westmetall",
+      "rows": 126,
+      "last": "2026-11-17"
+    }
+  },
+  "shfe": {
+    "ok": true,
+    "source": "shfe",
+    "rows": 6104,
+    "last": "2026-11-18"
+  },
+  "fx": {
+    "ok": true,
+    "source": "ECB via frankfurter.dev",
+    "last": "2026-11-17"
+  },
+  "ine": {
+    "ok": true,
+    "source": "ine",
+    "rows": 2440,
+    "last": "2026-11-18"
+  },
+  "intl": {
+    "au": {
+      "ok": true,
+      "label": "LBMA gold",
+      "source": "westmetall USD_ozt_London",
+      "last": "2026-11-17"
+    },
+    "ag": {
+      "ok": true,
+      "label": "COMEX silver",
+      "source": "yahoo SI=F",
+      "last": "2026-11-18"
+    },
+    "sc": {
+      "ok": true,
+      "label": "Brent",
+      "source": "yahoo BZ=F",
+      "last": "2026-11-18"
+    },
+    "sc_2": {
+      "ok": true,
+      "label": "WTI",
+      "source": "yahoo CL=F",
+      "last": "2026-11-18"
+    }
+  },
+  "run_utc": "2026-11-18T13:35:23+00:00"
+}
