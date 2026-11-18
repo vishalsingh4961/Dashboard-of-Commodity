@@ -22,13 +22,13 @@
   "shfe": {
     "ok": true,
     "source": "shfe",
-    "rows": 896,
+    "rows": 168,
     "last": "2026-11-18"
   },
   "fx": {
     "ok": true,
     "source": "ECB via frankfurter.dev",
-    "last": "2026-11-17"
+    "last": "2026-11-18"
   },
   "ine": {
     "ok": true,
@@ -62,5 +62,5 @@
       "last": "2026-11-18"
     }
   },
-  "run_utc": "2026-11-18T13:41:11+00:00"
+  "run_utc": "2026-11-18T22:10:47+00:00"
 }
