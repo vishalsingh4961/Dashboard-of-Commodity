@@ -3,20 +3,20 @@
     "cu": {
       "ok": true,
       "source": "westmetall",
-      "rows": 7,
-      "last": "2026-11-17"
+      "rows": 8,
+      "last": "2026-11-18"
     },
     "al": {
       "ok": true,
       "source": "westmetall",
-      "rows": 7,
-      "last": "2026-11-17"
+      "rows": 8,
+      "last": "2026-11-18"
     },
     "zn": {
       "ok": true,
       "source": "westmetall",
-      "rows": 7,
-      "last": "2026-11-17"
+      "rows": 8,
+      "last": "2026-11-18"
     }
   },
   "shfe": {
@@ -28,7 +28,7 @@
   "fx": {
     "ok": true,
     "source": "ECB via frankfurter.dev",
-    "last": "2026-11-18"
+    "last": "2026-11-19"
   },
   "ine": {
     "ok": true,
@@ -41,7 +41,7 @@
       "ok": true,
       "label": "LBMA gold",
       "source": "westmetall USD_ozt_London",
-      "last": "2026-11-17"
+      "last": "2026-11-18"
     },
     "ag": {
       "ok": true,
@@ -65,7 +65,7 @@
   "rates": {
     "ok": true,
     "source": "SOFR, New York Fed",
-    "last": "2026-11-17"
+    "last": "2026-11-18"
   },
-  "run_utc": "2026-11-19T06:32:08+00:00"
+  "run_utc": "2026-11-19T22:20:06+00:00"
 }
