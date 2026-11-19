@@ -100,6 +100,26 @@ def test_formulas_by_hand():
     assert abs(r["arb_3m"] - (81500 - cost3)) < 1e-6
 
 
+def test_term_structure_by_hand():
+    d = dt.date(2026, 11, 16)
+    cfg = json.loads(json.dumps(CFG)); cfg["metals"]["cu"]["rent_usd_day"] = 0.6; cfg["settings"]["prompt_days"] = 91
+    lme = pd.DataFrame([{"date": d, "metal": "cu", "cash": 10000.0, "three_m": 10060.0, "stock": 1}])   # contango 60
+    shfe = pd.DataFrame(columns=["date", "metal", "contract", "settle", "open_interest"])
+    fx = pd.DataFrame([{"date": d, "usdcny": 7.0}])
+    rates = pd.DataFrame([{"date": dt.date(2026, 11, 14), "sofr_pct": 3.6}])
+    r = calc.compute(lme, shfe, fx, cfg, today=d, rates=rates).iloc[0]
+    fc = 10000 * 0.036 * 91 / 360 + 0.6 * 91
+    assert r["lme_c3m"] == -60 and abs(r["full_carry_usd"] - fc) < 1e-9
+    assert abs(r["pct_full_carry"] - 60 / fc * 100) < 1e-9
+    assert abs(r["lme_c3m_ann_pct"] - (-60 / 10000 * 360 / 91 * 100)) < 1e-9
+    from arbdash import render
+    df = pd.DataFrame({"date": [dt.date(2026, 11, i) for i in (10, 11, 12, 13, 16, 17)],
+                       "lme_c3m": [-5.0, 3.0, 10.0, 12.0, 1.0, 20.0]})
+    t = render.term_stats(df, band=2)
+    assert t["state"] == "back" and t["streak"] == 1 and t["since"] == "2026-11-17"   # 1.0 is "flat" inside the band
+    assert t["d1"] == 19.0 and t["w1"] == 25.0 and t["min"] == -5.0 and t["max"] == 20.0 and t["pctile"] == 100.0
+
+
 def test_frozen_history():
     d_old, d_new = dt.date(2026, 10, 1), dt.date(2026, 11, 16)
     lme = pd.DataFrame([{"date": d, "metal": "cu", "cash": 10000.0, "three_m": 9900.0, "stock": 1} for d in (d_old, d_new)])
@@ -212,6 +232,10 @@ def run_demo(out_dir: Path, today: dt.date) -> Path:
     def f_shfe(days, codes, exchange="shfe"):
         return shfe[shfe["date"].isin(set(days)) & shfe["metal"].isin(codes)].reset_index(drop=True)
 
+    def f_sofr(start, end):
+        days = [start + dt.timedelta(days=i) for i in range((end - start).days + 1)]
+        return pd.DataFrame([{"date": d, "sofr_pct": 3.6} for d in days if d.weekday() < 5]), "fake"
+
     def f_intl(spec, start):
         (kind, sym), = spec[0].items()
         series = {"USD_ozt_London": "au", "SI=F": "ag", "BZ=F": "sc", "CL=F": "sc_2"}[sym]
@@ -221,9 +245,9 @@ def run_demo(out_dir: Path, today: dt.date) -> Path:
     def f_fx(start, end):
         return fx[(fx["date"] >= start) & (fx["date"] <= end)].reset_index(drop=True)
 
-    orig = (sources.fetch_lme_westmetall, sources.fetch_shfe_range, sources.fetch_fx_frankfurter, sources.fetch_intl, update.ROOT, update.DATA, update.DOCS)
+    orig = (sources.fetch_lme_westmetall, sources.fetch_shfe_range, sources.fetch_fx_frankfurter, sources.fetch_intl, sources.fetch_sofr, update.ROOT, update.DATA, update.DOCS)
     try:
-        sources.fetch_lme_westmetall, sources.fetch_shfe_range, sources.fetch_fx_frankfurter, sources.fetch_intl = f_lme, f_shfe, f_fx, f_intl
+        sources.fetch_lme_westmetall, sources.fetch_shfe_range, sources.fetch_fx_frankfurter, sources.fetch_intl, sources.fetch_sofr = f_lme, f_shfe, f_fx, f_intl, f_sofr
         update.ROOT, update.DATA, update.DOCS = out_dir, out_dir / "data", out_dir / "docs"
         cfg_path = out_dir / "config.yaml"
         txt = cfg_path.read_text().replace("premium_usd: 0 ", "premium_usd: 60 ")
@@ -235,7 +259,7 @@ def run_demo(out_dir: Path, today: dt.date) -> Path:
         update.run(today=today)  # second run must be idempotent
         update.load_config = _orig_load
     finally:
-        sources.fetch_lme_westmetall, sources.fetch_shfe_range, sources.fetch_fx_frankfurter, sources.fetch_intl, update.ROOT, update.DATA, update.DOCS = orig
+        sources.fetch_lme_westmetall, sources.fetch_shfe_range, sources.fetch_fx_frankfurter, sources.fetch_intl, sources.fetch_sofr, update.ROOT, update.DATA, update.DOCS = orig
     return out_dir
 
 
@@ -247,12 +271,13 @@ def test_full_run():
     assert m.duplicated(["date", "metal"]).sum() == 0
     latest = m[m["date"] == m["date"].max()]
     assert latest["arb_spot"].notna().all() and latest["shfe_m1_contract"].str.endswith("2612").all()
+    assert latest["full_carry_usd"].notna().all() and latest["lme_c3m_ann_pct"].notna().all()
     o = pd.read_csv(out / "data" / "others.csv")
     assert set(o["inst"]) == {"au", "ag", "sc"} and o.duplicated(["date", "inst"]).sum() == 0
     lo = o[o["date"] == o["date"].max()].set_index("inst")
     assert lo["premium_usd"].notna().all() and lo.loc["sc", "intl_spread"] > 0
     html = (out / "docs" / "index.html").read_text()
-    assert "/*__DATA__*/" not in html and '"metals"' in html and '"others"' in html
+    assert "/*__DATA__*/" not in html and '"metals"' in html and '"others"' in html and '"term": {' in html
 
 
 def test_all_sources_down():
@@ -264,7 +289,7 @@ def test_all_sources_down():
     def boom(*a, **k):
         raise sources.SourceError("simulated outage")
 
-    names = ["fetch_lme_westmetall", "fetch_lme_sina", "fetch_shfe_range", "fetch_shfe_sina", "fetch_fx_frankfurter", "fetch_fx_latest_er", "fetch_intl"]
+    names = ["fetch_lme_westmetall", "fetch_lme_sina", "fetch_shfe_range", "fetch_shfe_sina", "fetch_fx_frankfurter", "fetch_fx_latest_er", "fetch_intl", "fetch_sofr"]
     saved = {n: getattr(sources, n) for n in names}
     saved_paths = (update.ROOT, update.DATA, update.DOCS, update.load_config)
     try:
@@ -282,7 +307,7 @@ def test_all_sources_down():
     assert "simulated outage" in html
     log = json.loads((out / "data" / "run_log.json").read_text())
     assert log["shfe"]["ok"] is False and log["fx"]["ok"] is False and log["ine"]["ok"] is False
-    assert all(v["ok"] is False for v in log["intl"].values())
+    assert all(v["ok"] is False for v in log["intl"].values()) and log["rates"]["ok"] is False
 
 
 if __name__ == "__main__":

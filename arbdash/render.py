@@ -13,6 +13,7 @@ TEMPLATE = Path(__file__).with_name("template.html")
 
 SERIES = [
     "lme_cash", "lme_3m", "lme_c3m", "lme_stock",
+    "lme_c3m_ann_pct", "sofr_pct", "rent_usd_day", "full_carry_usd", "pct_full_carry",
     "shfe_m1", "shfe_m2", "shfe_m3", "shfe_m1_m2", "shfe_m1_m3",
     "shfe_m1_contract", "shfe_m3_contract", "shfe_main_contract",
     "usdcny", "premium_usd", "duty", "misc_cny",
@@ -84,6 +85,51 @@ def build_others(others: pd.DataFrame | None, cfg: dict) -> list[dict]:
     return out
 
 
+def term_stats(df: pd.DataFrame, band: float, window: int = 126) -> dict | None:
+    """Latest LME cash-3M structure for one metal, with streak, changes and a ~6-month range."""
+    if df.empty or "lme_c3m" not in df:
+        return None
+    t = df.dropna(subset=["lme_c3m"]).sort_values("date")
+    if t.empty:
+        return None
+    vals = t["lme_c3m"].tolist()
+    dates = [str(d) for d in t["date"]]
+
+    def state(x):
+        return "back" if x > band else ("contango" if x < -band else "flat")
+
+    cur = vals[-1]
+    st = state(cur)
+    n = 0
+    for x in reversed(vals):
+        if state(x) != st:
+            break
+        n += 1
+    w = t.tail(window)["lme_c3m"]
+    last = t.iloc[-1]
+    return {
+        "date": dates[-1],
+        "c3m": _clean(cur),
+        "ann_pct": _clean(last.get("lme_c3m_ann_pct")),
+        "full_carry": _clean(last.get("full_carry_usd")),
+        "pct_full_carry": _clean(last.get("pct_full_carry")),
+        "sofr": _clean(last.get("sofr_pct")),
+        "rent": _clean(last.get("rent_usd_day")),
+        "state": st,
+        "streak": n,
+        "since": dates[-n],
+        "d1": _clean(cur - vals[-2]) if len(vals) > 1 else None,
+        "d1_date": dates[-2] if len(vals) > 1 else None,
+        "w1": _clean(cur - vals[-6]) if len(vals) > 5 else None,
+        "min": _clean(float(w.min())),
+        "max": _clean(float(w.max())),
+        "mean": _clean(float(w.mean())),
+        "pctile": _clean(float((w <= cur).mean() * 100)),
+        "window_obs": int(len(w)),
+        "window_from": str(t.tail(window)["date"].iloc[0]),
+    }
+
+
 def build_payload(metrics: pd.DataFrame, cfg: dict, log: dict, now: dt.datetime | None = None,
                   others: pd.DataFrame | None = None) -> dict:
     st = cfg.get("settings", {})
@@ -109,10 +155,12 @@ def build_payload(metrics: pd.DataFrame, cfg: dict, log: dict, now: dt.datetime 
             age = (today - pd.to_datetime(as_of).date()).days if as_of else None
         except (ValueError, TypeError):
             age = None
+        series["full_carry_line"] = [(-v if v is not None else None) for v in series.get("full_carry_usd", [])]
         metals.append(
             {
                 "code": code,
                 "name": m.get("name", code.upper()),
+                "term": term_stats(df, float(st.get("flat_band_usd", 2))),
                 "premium_usd": _clean(float(m.get("premium_usd") or 0)),
                 "premium_as_of": str(as_of) if as_of else None,
                 "premium_age_days": age,

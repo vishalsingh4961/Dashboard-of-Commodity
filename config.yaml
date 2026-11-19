@@ -18,6 +18,11 @@ fx:
   # (via frankfurter.dev). Set a number (e.g. 7.12) to force a fixed rate.
   manual_usdcny:
 
+rates:
+  # Interest rate for the LME full-carry calculation. Leave empty to use daily SOFR
+  # (New York Fed); or set a number in percent, e.g. 4.0
+  manual_pct:
+
 metals:
   cu:
     name: Copper
@@ -28,6 +33,7 @@ metals:
     premium_as_of: 2026-11-17  # date you last updated the premium
     duty: 0.0                  # SET ME: import duty as a decimal (0.02 = 2%) for your origin/FTA
     misc_cny: 150              # port, LC, insurance, finance, inland etc., CNY/t (example value)
+    rent_usd_day: 0.60         # approx. LME warehouse rent, USD/t/day, for full carry (set your view)
 
   al:
     name: Aluminium
@@ -38,6 +44,7 @@ metals:
     premium_as_of: 2026-11-17
     duty: 0.0                  # SET ME
     misc_cny: 150
+    rent_usd_day: 0.60
 
   zn:
     name: Zinc
@@ -48,6 +55,7 @@ metals:
     premium_as_of: 2026-11-17
     duty: 0.0                  # SET ME
     misc_cny: 150
+    rent_usd_day: 0.60
 
 # ---------------------------------------------------------------------------
 # Precious metals and crude: China price (most-active contract) vs international.
@@ -102,6 +110,9 @@ settings:
   # Each run recalculates the last N days with the current assumptions;
   # older days are kept exactly as they were calculated.
   recompute_window_days: 7
+  # LME term structure: days from cash to 3M, and cash–3M within ± this (USD/t) counts as "Flat".
+  prompt_days: 91
+  flat_band_usd: 2
   # Import P/L within ± this band (CNY/t) is shown as "Near breakeven".
   near_band_cny: 100
   # Premium older than this (days) gets a "stale" warning.

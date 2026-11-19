@@ -28,6 +28,7 @@ KEYS = {
     "shfe": ["date", "metal", "contract"],
     "intl": ["date", "series"],
     "fx": ["date"],
+    "rates": ["date"],
 }
 
 
@@ -200,6 +201,19 @@ def fetch_all(cfg: dict, today: dt.date) -> dict:
             log["fx"] = {"ok": False, "error": f"{msg}; er-api: {e2}"}
     sources.log(f"FX: {log['fx']}")
     upsert("fx", df)
+
+    # ---- SOFR (for LME full carry) -----------------------------------------
+    r_old = read_csv("rates")
+    last = _last_date(r_old)
+    start = (last - dt.timedelta(days=10)) if last else default_start - dt.timedelta(days=10)
+    try:
+        df, used = sources.fetch_sofr(start, today)
+        log["rates"] = {"ok": True, "source": f"SOFR, {used}", "last": str(df["date"].max())}
+    except Exception as e:  # noqa: BLE001
+        df = pd.DataFrame()
+        log["rates"] = {"ok": False, "error": f"SOFR: {e}"}
+    sources.log(f"SOFR: {log['rates']}")
+    upsert("rates", df)
     return log
 
 
@@ -215,7 +229,7 @@ def run(recompute: bool = False, render_only: bool = False, today: dt.date | Non
 
     existing = read_csv("metrics")
     metrics = calc.compute(read_csv("lme"), read_csv("shfe"), read_csv("fx"), cfg,
-                           existing=existing, recompute_all=recompute, today=today)
+                           existing=existing, recompute_all=recompute, today=today, rates=read_csv("rates"))
     metrics = calc.tidy(metrics) if not metrics.empty else metrics
     DATA.mkdir(exist_ok=True)
     if not metrics.empty:

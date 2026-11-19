@@ -11,6 +11,7 @@ Gold     : LBMA gold price via Westmetall            -> Yahoo GC=F -> Sina GC
 Silver   : COMEX front month via Yahoo SI=F          -> Sina SI
 Brent/WTI: Yahoo BZ=F / CL=F                         -> Sina OIL / CL
 FX       : ECB reference USD/CNY via frankfurter.dev -> open.er-api.com (latest only)
+SOFR     : New York Fed markets API                  -> FRED (series SOFR)
 """
 from __future__ import annotations
 
@@ -451,3 +452,40 @@ def fetch_fx_latest_er() -> pd.DataFrame:
     if not rate:
         raise SourceError("er-api: no CNY rate")
     return pd.DataFrame([{"date": dt.date.today(), "usdcny": float(rate), "source": "er-api"}])
+
+
+# ---------------------------------------------------------------------------
+# SOFR — for the LME full-carry calculation
+# ---------------------------------------------------------------------------
+NYFED_SOFR = "https://markets.newyorkfed.org/api/rates/secured/sofr/search.json"
+FRED_SOFR = "https://fred.stlouisfed.org/graph/fredgraph.csv"
+
+
+def fetch_sofr(start: dt.date, end: dt.date) -> tuple[pd.DataFrame, str]:
+    """Daily SOFR in percent. Returns (frame with date, sofr_pct; source used)."""
+    errors = []
+    try:
+        r = _get(NYFED_SOFR, params={"startDate": start.isoformat(), "endDate": end.isoformat()})
+        rows = [
+            {"date": dt.date.fromisoformat(x["effectiveDate"]), "sofr_pct": float(x["percentRate"])}
+            for x in r.json().get("refRates", [])
+            if x.get("percentRate") is not None
+        ]
+        if rows:
+            return pd.DataFrame(rows).drop_duplicates("date").sort_values("date").reset_index(drop=True), "New York Fed"
+        errors.append("nyfed: no rows")
+    except (SourceError, ValueError, KeyError) as e:
+        errors.append(f"nyfed: {e}")
+    try:
+        r = _get(FRED_SOFR, params={"id": "SOFR", "cosd": start.isoformat()})
+        df = pd.read_csv(StringIO(r.text))
+        df.columns = ["date", "sofr_pct"]
+        df["date"] = pd.to_datetime(df["date"]).dt.date
+        df["sofr_pct"] = pd.to_numeric(df["sofr_pct"], errors="coerce")
+        df = df.dropna()
+        if not df.empty:
+            return df[df["date"] >= start].reset_index(drop=True), "FRED"
+        errors.append("fred: no rows")
+    except (SourceError, ValueError, KeyError) as e:
+        errors.append(f"fred: {e}")
+    raise SourceError("; ".join(errors))

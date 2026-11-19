@@ -5,6 +5,10 @@ All prices per tonne. SHFE prices are CNY and include VAT; LME prices are USD.
 Import cost (CNY/t)  = (LME + CIF premium) x USDCNY x (1 + duty) x (1 + VAT) + misc costs
 Import P/L  (CNY/t)  = SHFE - import cost                       (> 0 => import window open)
 Ratio                = SHFE / LME
+Cash-3M              = LME cash - LME 3M          (> 0 backwardation, < 0 contango)
+Cash-3M % p.a.       = (cash - 3M) / cash x 360 / prompt days
+Full carry           = cash x SOFR x days/360 + warehouse rent x days   (the most contango storage can justify)
+% of full carry      = (3M - cash) / full carry
 Breakeven ratio      = import cost / LME
 Breakeven premium    = (SHFE - misc) / (USDCNY x (1+duty) x (1+VAT)) - LME
                        (highest CIF premium an importer could pay and still break even)
@@ -59,6 +63,7 @@ def compute(
     existing: pd.DataFrame | None = None,
     recompute_all: bool = False,
     today: dt.date | None = None,
+    rates: pd.DataFrame | None = None,
 ) -> pd.DataFrame:
     """Build the metrics table. Rows older than the recompute window keep their stored values."""
     today = today or dt.date.today()
@@ -75,6 +80,11 @@ def compute(
 
     fx = fx.dropna(subset=["usdcny"]).sort_values("date").copy()
     fx["date"] = pd.to_datetime(fx["date"])
+    manual_rate = (cfg.get("rates") or {}).get("manual_pct")
+    rates = rates if rates is not None and not rates.empty else pd.DataFrame(columns=["date", "sofr_pct"])
+    rates = rates.dropna(subset=["sofr_pct"]).sort_values("date").copy()
+    rates["date"] = pd.to_datetime(rates["date"])
+    days = float(cfg.get("settings", {}).get("prompt_days", 91))
 
     frames = []
     for metal, m in cfg["metals"].items():
@@ -90,6 +100,14 @@ def compute(
             df = pd.merge_asof(df, fx[["date", "usdcny"]], on="date", direction="backward", tolerance=pd.Timedelta(days=5))
         else:
             df["usdcny"] = np.nan
+        if manual_rate not in (None, ""):
+            df["sofr_pct"] = float(manual_rate)
+        elif not rates.empty:
+            df = pd.merge_asof(df.sort_values("date"), rates[["date", "sofr_pct"]], on="date", direction="backward", tolerance=pd.Timedelta(days=7))
+        else:
+            df["sofr_pct"] = np.nan
+        df["rent_usd_day"] = float(m.get("rent_usd_day") or 0)
+        df["prompt_days"] = days
         df["metal"] = metal
         df = df.rename(columns={"cash": "lme_cash", "three_m": "lme_3m", "stock": "lme_stock"})
 
@@ -260,6 +278,11 @@ def _derive(df: pd.DataFrame) -> pd.DataFrame:
     """Recalculate every derived column from the stored inputs (prices, FX, assumptions)."""
     mult = df["usdcny"] * (1 + df["duty"]) * (1 + df["vat"])
     df["lme_c3m"] = df["lme_cash"] - df["lme_3m"]
+    if "prompt_days" in df:
+        d = df["prompt_days"]
+        df["lme_c3m_ann_pct"] = df["lme_c3m"] / df["lme_cash"] * 360 / d * 100
+        df["full_carry_usd"] = df["lme_cash"] * df["sofr_pct"] / 100 * d / 360 + df["rent_usd_day"] * d
+        df["pct_full_carry"] = (df["lme_3m"] - df["lme_cash"]) / df["full_carry_usd"] * 100
     df["shfe_m1_m2"] = df["shfe_m1"] - df["shfe_m2"]
     df["shfe_m1_m3"] = df["shfe_m1"] - df["shfe_m3"]
 
@@ -283,6 +306,7 @@ def _derive(df: pd.DataFrame) -> pd.DataFrame:
 COLUMNS = [
     "date", "metal",
     "lme_cash", "lme_3m", "lme_c3m", "lme_stock",
+    "lme_c3m_ann_pct", "sofr_pct", "rent_usd_day", "full_carry_usd", "pct_full_carry",
     "shfe_m1", "shfe_m2", "shfe_m3", "shfe_m1_contract", "shfe_m2_contract", "shfe_m3_contract",
     "shfe_main", "shfe_main_contract", "shfe_m1_m2", "shfe_m1_m3",
     "usdcny", "premium_usd", "duty", "vat", "misc_cny",
@@ -297,7 +321,7 @@ def tidy(df: pd.DataFrame) -> pd.DataFrame:
         if c not in df:
             df[c] = np.nan
     df = df[COLUMNS].copy()
-    four_dp = ["usdcny", "ratio_spot", "be_ratio_spot", "ratio_3m", "be_ratio_3m", "duty", "vat"]
+    four_dp = ["usdcny", "ratio_spot", "be_ratio_spot", "ratio_3m", "be_ratio_3m", "duty", "vat", "sofr_pct"]
     for c in df.columns:
         if c in four_dp:
             df[c] = df[c].astype(float).round(4)

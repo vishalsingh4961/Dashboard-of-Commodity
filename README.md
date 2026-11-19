@@ -10,6 +10,9 @@ a dashboard page on GitHub Pages that you can open on any device.
 - The SHFE/LME price ratio against the breakeven ratio
 - The breakeven CIF premium (the most an importer could pay) against your premium
 - The LME cash–3M spread, the SHFE 1st–2nd and 1st–3rd month spreads, and LME stocks
+- **LME term structure** for copper, aluminium and zinc: cash–3M backwardation or contango in $/t and % per year,
+  how long it has been in that state, change vs yesterday and last week, the 6-month range and percentile, and
+  contango as a share of **full carry** (cash × SOFR × 91/360 + warehouse rent × 91; rent per metal in `config.yaml`)
 - **Gold:** Shanghai premium (SHFE most-active, CNY/g) over the LBMA gold price in USD/oz, plus import P/L and SHFE calendar spread
 - **Silver:** Shanghai premium (SHFE most-active ex-VAT, CNY/kg) over COMEX silver, plus import P/L and calendar spread
 - **Crude:** INE SC (most-active, converted to USD/bbl) minus Brent, Brent–WTI, and the SC calendar spread
@@ -89,6 +92,7 @@ To recalculate *all* history with the current values: *Actions → Run workflow 
 | Silver, USD/oz | COMEX front month via Yahoo SI=F | Sina |
 | Brent / WTI, USD/bbl | Yahoo BZ=F / CL=F (front month) | Sina |
 | USD/CNY | ECB reference rate via frankfurter.dev | open.er-api.com (latest only) |
+| SOFR (for full carry) | New York Fed markets API | FRED |
 
 Timing: China prices are Shanghai settlement prices; the LBMA gold price is set in London, and
 COMEX silver, Brent and WTI are New York closes from the same day. Part of each day's premium

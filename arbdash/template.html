@@ -70,8 +70,13 @@ section { margin-bottom: 16px; }
 .tile-value .unit { font-size: 13px; font-weight: 500; color: var(--text-secondary); margin-left: 4px; letter-spacing: 0; }
 .tile-delta { font-size: 12px; color: var(--text-secondary); margin-bottom: 10px; }
 .kv { display: grid; grid-template-columns: 1fr auto; gap: 5px 12px; font-size: 13px; border-top: 1px solid var(--grid); padding-top: 10px; }
-.kv dt { color: var(--text-secondary); } .kv dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
+.kv dt { color: var(--text-secondary); white-space: nowrap; } .kv dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
 .tile-foot { font-size: 11px; color: var(--muted); margin-top: 10px; }
+.rbar { position: relative; height: 8px; background: var(--grid); border-radius: 4px; margin: 12px 6px 4px; }
+.rbar .zero { position: absolute; top: -3px; width: 1px; height: 14px; background: var(--baseline); }
+.rbar .mark { position: absolute; top: 50%; width: 12px; height: 12px; border-radius: 50%; background: var(--series-1); border: 2px solid var(--surface-1); transform: translate(-50%, -50%); }
+.rbar-labels { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); margin: 0 0 4px; }
+.wide-chart .chart-box { height: 260px; }
 
 .tbl-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 table { border-collapse: collapse; width: 100%; font-size: 13px; }
@@ -119,6 +124,14 @@ details[open] summary { margin-bottom: 10px; }
   <h2 class="group-title">Base metals · LME vs SHFE</h2>
   <section class="tiles" id="tiles" aria-label="Import arbitrage by metal"></section>
 
+  <h2 class="group-title">LME term structure · cash vs 3-month</h2>
+  <section class="tiles" id="termTiles" aria-label="LME backwardation and contango"></section>
+  <section class="card wide-chart">
+    <h3 class="chart-title">Cash–3M across LME metals</h3>
+    <p class="chart-sub">% per year of the cash price · above zero = backwardation, below = contango · date range follows the chart filter below</p>
+    <div class="chart-box"><canvas id="termChart" role="img" aria-label="Cash to 3-month spread for copper, aluminium and zinc, percent per year"></canvas></div>
+  </section>
+
   <h2 class="group-title">Precious metals &amp; crude · international vs China</h2>
   <section class="tiles" id="tiles2" aria-label="Gold, silver and crude"></section>
 
@@ -161,6 +174,7 @@ details[open] summary { margin-bottom: 10px; }
     <div>Import cost = (LME + CIF premium) × USD/CNY × (1 + duty) × (1 + VAT) + misc costs. &nbsp;Import P/L = SHFE − import cost; positive means the import window is open.</div>
     <div>Spot compares the SHFE 1st month (连一) with LME cash. 3M compares the SHFE 3rd month (连三) with LME 3-month. Ratio = SHFE ÷ LME; breakeven ratio = import cost ÷ LME.</div>
     <div>SHFE−LME $ = SHFE 1st month with VAT taken out, in USD, minus LME cash. Breakeven premium = the highest CIF premium an importer could pay today and still break even. Cash–3M and SHFE calendar spreads are near minus far: positive = backwardation, negative = contango.</div>
+    <div>LME term structure: cash–3M = cash minus 3-month (positive = backwardation, negative = contango); % p.a. = cash–3M ÷ cash × 360 ÷ 91 days. Full carry = cash × SOFR × 91/360 + warehouse rent × 91 days, the most contango that storage and financing can justify; contango near 100% of full carry signals ample nearby metal. The 6-month range and percentile use the last 126 LME days.</div>
     <div>Gold, silver and crude use the most-active China contract (by open interest). Shanghai premium = China price with VAT removed, converted to USD/oz (or USD/bbl), minus the international price. Import P/L = China price − (international + your cost) × USD/CNY × (1 + duty) × (1 + VAT), in CNY/g (gold), CNY/kg (silver). Crude: SC − Brent in USD/bbl; SC is quoted net of duty and VAT. Main − next = most-active minus the next most-active later contract.</div>
     <div>Timing: China prices are settlement prices from the Shanghai close; LBMA gold is the London fixing, and COMEX silver, Brent and WTI are the same-day front-month closes in New York, so part of any daily move is just the time gap.</div>
     <div>Sources: LME official prices and stocks and the LBMA gold price via Westmetall; SHFE and INE settlement prices from shfe.com.cn and ine.cn; COMEX silver, Brent and WTI via Yahoo Finance; USD/CNY = ECB reference rate via frankfurter.dev. LME data is licensed by the LME — keep this page for your own use. Indicative only, not trading advice.</div>
@@ -241,6 +255,7 @@ document.getElementById("title").textContent = DATA.title;
   const log = DATA.log || {};
   if (log.shfe && log.shfe.ok === false) add(`SHFE download failed on the last run: ${log.shfe.error}`, true);
   if (log.fx && log.fx.ok === false) add(`USD/CNY download failed on the last run: ${log.fx.error}`, true);
+  if (log.rates && log.rates.ok === false) add(`SOFR download failed on the last run, so full carry may be missing: ${log.rates.error}`, true);
   for (const [k, v] of Object.entries(log.lme || {})) if (v && v.ok === false) add(`LME ${k.toUpperCase()} download failed on the last run: ${v.error}`, true);
   if (log.ine && log.ine.ok === false) add(`INE (crude) download failed on the last run: ${log.ine.error}`, true);
   for (const v of Object.values(log.intl || {})) if (v && v.ok === false) add(`${v.label || "International price"} download failed on the last run: ${v.error}`, true);
@@ -272,6 +287,47 @@ document.getElementById("title").textContent = DATA.title;
     }
     card.append(kv);
     if (L) card.append(el("div", { class: "tile-foot", text: `As of ${dLong(L.date)} · ${L.shfe_m1_contract || "SHFE —"} vs LME cash` }));
+    box.append(card);
+  }
+})();
+
+// ---------- LME term structure tiles ----------
+const TERM_LABEL = { back: ["▲", "Backwardation"], contango: ["▼", "Contango"], flat: ["●", "Flat"] };
+(function termTiles() {
+  const box = document.getElementById("termTiles");
+  for (const m of DATA.metals) {
+    const T = m.term;
+    const card = el("article", { class: "card", "aria-label": `${m.name} LME term structure` });
+    const [dot, word] = T ? TERM_LABEL[T.state] : ["○", "No data"];
+    card.append(el("div", { class: "tile-head" }, el("span", { class: "tile-name", text: m.name }),
+      el("span", { class: `pill ${T ? "neutral" : "na"}` }, el("span", { class: "dot", "aria-hidden": "true", text: dot }), word)));
+    card.append(el("div", { class: "tile-label", text: "LME cash–3M" }));
+    card.append(el("div", { class: "tile-value" }, T ? fmt(T.c3m, 2, true) : "—", el("span", { class: "unit", text: "$/t" })));
+    if (!T) { box.append(card); continue; }
+    const parts = [];
+    if (T.d1 !== null) parts.push(`${fmt(T.d1, 2, true)} vs ${dShort(T.d1_date)}`);
+    if (T.w1 !== null) parts.push(`${fmt(T.w1, 2, true)} vs 1 wk`);
+    card.append(el("div", { class: "tile-delta", text: parts.join(" · ") || "No previous day" }));
+
+    // 6-month range bar: min .. max with the current value marked (and zero, if inside)
+    const lo = Math.min(T.min, T.c3m), hi = Math.max(T.max, T.c3m), span = hi - lo || 1;
+    const pos = (v) => `${((v - lo) / span) * 100}%`;
+    const bar = el("div", { class: "rbar", role: "img", "aria-label": `6-month range ${fmt(T.min, 0, true)} to ${fmt(T.max, 0, true)} dollars, now ${fmt(T.c3m, 0, true)}` });
+    if (lo < 0 && hi > 0) { const z = el("span", { class: "zero" }); z.style.left = pos(0); bar.append(z); }
+    const mk = el("span", { class: "mark" }); mk.style.left = pos(T.c3m); bar.append(mk);
+    card.append(bar);
+    card.append(el("div", { class: "rbar-labels" }, el("span", { text: `6M low ${fmt(T.min, 0, true)}` }), el("span", { text: `high ${fmt(T.max, 0, true)}` })));
+
+    const kv = el("dl", { class: "kv" });
+    const row = (k, v) => { kv.append(el("dt", { text: k }), el("dd", { text: v })); };
+    row("Annualised", `${fmt(T.ann_pct, 1, true)}% p.a.`);
+    if (T.state === "contango" && T.pct_full_carry !== null) row("Share of full carry", `${fmt(T.pct_full_carry, 0)}% of $${fmt(T.full_carry, 0)}`);
+    else row("Full carry", T.full_carry !== null ? `$${fmt(T.full_carry, 0)} contango` : "—");
+    row(`In ${word.toLowerCase()}`, `${T.streak} LME day${T.streak === 1 ? "" : "s"}, since ${dShort(T.since)}`);
+    row("6M average", `${fmt(T.mean, 0, true)} $/t`);
+    row("6M percentile", `${fmt(T.pctile, 0)}th (higher = tighter)`);
+    card.append(kv);
+    card.append(el("div", { class: "tile-foot", text: `LME official ${dLong(T.date)} · SOFR ${T.sofr !== null ? fmt(T.sofr, 2) + "%" : "—"} · rent $${fmt(T.rent, 2)}/t/day` }));
     box.append(card);
   }
 })();
@@ -337,7 +393,7 @@ document.getElementById("title").textContent = DATA.title;
   for (const [k, v] of Object.entries(log.lme || {})) line(`LME ${k.toUpperCase()}`, v);
   line("SHFE", log.shfe); line("INE", log.ine);
   for (const v of Object.values(log.intl || {})) line(v.label || "International", v);
-  line("USD/CNY", log.fx);
+  line("USD/CNY", log.fx); line("SOFR", log.rates);
   if (log.run_utc) ul.append(el("li", { text: `Run at ${log.run_utc.replace("T", " ").replace("+00:00", " UTC")}` }));
   if (!ul.children.length) ul.append(el("li", { text: "No run log yet." }));
 })();
@@ -437,8 +493,8 @@ const BASE_CHARTS = [
     sets: [{ key: "ratio_spot", label: "Ratio", color: "--series-1" }, { key: "be_ratio_spot", label: "Breakeven", color: "--ref" }] },
   { id: "bep", title: "Breakeven CIF premium", sub: "USD/t · the most an importer could pay, against your premium", dp: 0,
     sets: [{ key: "be_premium_spot", label: "Breakeven", color: "--series-1" }, { key: "premium_usd", label: "Your premium", color: "--ref" }] },
-  { id: "lmec3m", title: "LME cash–3M spread", sub: "USD/t · positive = backwardation", dp: 2, tickDp: 0, signed: true,
-    sets: [{ key: "lme_c3m", label: "Cash–3M", color: "--series-1" }] },
+  { id: "lmec3m", title: "LME cash–3M spread", sub: "USD/t · positive = backwardation · grey = full-carry contango (cash × SOFR + rent)", dp: 2, tickDp: 0, signed: true,
+    sets: [{ key: "lme_c3m", label: "Cash–3M", color: "--series-1" }, { key: "full_carry_line", label: "Full carry", color: "--ref" }] },
   { id: "shfecal", title: "SHFE calendar spreads", sub: "CNY/t · near minus far month", dp: 0, signed: true,
     sets: [{ key: "shfe_m1_m2", label: "1st–2nd", color: "--series-1" }, { key: "shfe_m1_m3", label: "1st–3rd", color: "--series-2" }] },
   { id: "stock", title: "LME stocks", sub: "tonnes", dp: 0, compact: true,
@@ -522,18 +578,10 @@ const endLabels = {
   },
 };
 
-let chartObjs = {}, chartsFor = null, defsNow = [];
-function mountCharts(inst) {
-  for (const ch of Object.values(chartObjs)) ch.destroy();
-  chartObjs = {};
-  const box = document.getElementById("charts"); box.replaceChildren();
-  defsNow = chartDefs(inst);
-  for (const c of defsNow) {
-    const canvas = el("canvas", { role: "img", "aria-label": `${inst.name}: ${c.title} chart` });
-    box.append(el("div", { class: "card" }, el("h3", { class: "chart-title", text: c.title }), el("p", { class: "chart-sub", text: c.sub }), el("div", { class: "chart-box" }, canvas)));
-    const valueFmt = (v) => (c.compact ? compact(v) : fmt(v, c.dp, c.signed));
-    const tickDp = c.tickDp !== undefined ? c.tickDp : 0;
-    chartObjs[c.id] = new Chart(canvas, {
+function makeChart(canvas, c) {
+  const valueFmt = (v) => (c.compact ? compact(v) : fmt(v, c.dp, c.signed));
+  const tickDp = c.tickDp !== undefined ? c.tickDp : 0;
+  return new Chart(canvas, {
       type: "line",
       data: { labels: [], datasets: c.sets.map((s) => ({ label: s.label, data: [], _color: s.color })) },
       options: {
@@ -565,6 +613,31 @@ function mountCharts(inst) {
       },
       plugins: [crosshair, endLabels],
     });
+}
+
+let chartObjs = {}, chartsFor = null, defsNow = [], termChart = null;
+const TERM_DEF = { id: "term", dp: 1, tickDp: 0, signed: true, sets: DATA.metals.map((m, i) => ({ key: m.code, label: m.name, color: ["--series-1", "--series-2", "--series-3"][i] || "--ref" })) };
+function refreshTerm() {
+  if (!window.Chart) return;
+  if (!termChart) { termChart = makeChart(document.getElementById("termChart"), TERM_DEF); applyTheme(); }
+  const all = new Set(); DATA.metals.forEach((m) => m.series.date.forEach((d, i) => { if (m.series.lme_c3m_ann_pct[i] !== null && m.series.lme_c3m_ann_pct[i] !== undefined) all.add(d); }));
+  const dates = [...all].sort(), i0 = sliceIdx(dates);
+  termChart.data.labels = dates.slice(i0);
+  DATA.metals.forEach((m, k) => {
+    const map = new Map(m.series.date.map((d, i) => [d, m.series.lme_c3m_ann_pct[i]]));
+    termChart.data.datasets[k].data = dates.slice(i0).map((d) => (map.has(d) ? map.get(d) : null));
+  });
+  termChart.update("none");
+}
+function mountCharts(inst) {
+  for (const ch of Object.values(chartObjs)) ch.destroy();
+  chartObjs = {};
+  const box = document.getElementById("charts"); box.replaceChildren();
+  defsNow = chartDefs(inst);
+  for (const c of defsNow) {
+    const canvas = el("canvas", { role: "img", "aria-label": `${inst.name}: ${c.title} chart` });
+    box.append(el("div", { class: "card" }, el("h3", { class: "chart-title", text: c.title }), el("p", { class: "chart-sub", text: c.sub }), el("div", { class: "chart-box" }, canvas)));
+    chartObjs[c.id] = makeChart(canvas, c);
   }
   chartsFor = inst.code;
   applyTheme();
@@ -575,7 +648,7 @@ function applyTheme() {
   const grid = css("--grid"), base = css("--baseline"), muted = css("--muted"), surf = css("--surface-1");
   Chart.defaults.color = css("--text-secondary");
   Chart.defaults.font.family = "system-ui, -apple-system, 'Segoe UI', sans-serif";
-  for (const ch of Object.values(chartObjs)) {
+  for (const ch of [...Object.values(chartObjs), ...(termChart ? [termChart] : [])]) {
     const o = ch.options;
     o.scales.x.border.color = base; o.scales.x.ticks.color = muted;
     o.scales.y.ticks.color = muted;
@@ -613,12 +686,14 @@ function refresh() {
   for (const b of document.querySelectorAll("#metalSeg button")) b.setAttribute("aria-pressed", String(b.dataset.v === state.inst));
   for (const b of document.querySelectorAll("#rangeSeg button")) b.setAttribute("aria-pressed", String(+b.dataset.v === state.range));
   renderTable(m, i0);
+  refreshTerm();
 }
 
 function tableCols(m) {
   if (m.kind === "base") return [
     ["Date", "date", (v) => dLong(v)], ["LME cash", "lme_cash", (v) => fmt(v, 2)], ["LME 3M", "lme_3m", (v) => fmt(v, 2)],
-    ["Cash–3M", "lme_c3m", (v) => fmt(v, 2, true)], ["SHFE 1st", "shfe_m1", (v) => fmt(v)], ["Contract", "shfe_m1_contract", (v) => v || "—"],
+    ["Cash–3M", "lme_c3m", (v) => fmt(v, 2, true)], ["C–3M % p.a.", "lme_c3m_ann_pct", (v) => fmt(v, 1, true)], ["% full carry", "pct_full_carry", (v) => fmt(v, 0)],
+    ["SHFE 1st", "shfe_m1", (v) => fmt(v)], ["Contract", "shfe_m1_contract", (v) => v || "—"],
     ["SHFE 3rd", "shfe_m3", (v) => fmt(v)], ["1st–2nd", "shfe_m1_m2", (v) => fmt(v, 0, true)], ["1st–3rd", "shfe_m1_m3", (v) => fmt(v, 0, true)],
     ["USD/CNY", "usdcny", (v) => fmt(v, 4)], ["Ratio", "ratio_spot", (v) => fmt(v, 3)], ["B/E ratio", "be_ratio_spot", (v) => fmt(v, 3)],
     ["P/L spot", "arb_spot", (v) => fmt(v, 0, true)], ["P/L 3M", "arb_3m", (v) => fmt(v, 0, true)],
