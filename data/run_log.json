@@ -22,8 +22,8 @@
   "shfe": {
     "ok": true,
     "source": "shfe",
-    "rows": 168,
-    "last": "2026-11-18"
+    "rows": 224,
+    "last": "2026-11-19"
   },
   "fx": {
     "ok": true,
@@ -33,8 +33,8 @@
   "ine": {
     "ok": true,
     "source": "ine",
-    "rows": 60,
-    "last": "2026-11-18"
+    "rows": 80,
+    "last": "2026-11-19"
   },
   "intl": {
     "au": {
@@ -47,20 +47,20 @@
       "ok": true,
       "label": "COMEX silver",
       "source": "yahoo SI=F",
-      "last": "2026-11-18"
+      "last": "2026-11-19"
     },
     "sc": {
       "ok": true,
       "label": "Brent",
       "source": "yahoo BZ=F",
-      "last": "2026-11-18"
+      "last": "2026-11-19"
     },
     "sc_2": {
       "ok": true,
       "label": "WTI",
       "source": "yahoo CL=F",
-      "last": "2026-11-18"
+      "last": "2026-11-19"
     }
   },
-  "run_utc": "2026-11-18T23:46:04+00:00"
+  "run_utc": "2026-11-19T06:12:38+00:00"
 }
