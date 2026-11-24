@@ -3,26 +3,26 @@
     "cu": {
       "ok": true,
       "source": "westmetall",
-      "rows": 11,
+      "rows": 7,
       "last": "2026-11-23"
     },
     "al": {
       "ok": true,
       "source": "westmetall",
-      "rows": 11,
+      "rows": 7,
       "last": "2026-11-23"
     },
     "zn": {
       "ok": true,
       "source": "westmetall",
-      "rows": 11,
+      "rows": 7,
       "last": "2026-11-23"
     }
   },
   "shfe": {
     "ok": true,
     "source": "shfe",
-    "rows": 392,
+    "rows": 168,
     "last": "2026-11-24"
   },
   "fx": {
@@ -33,7 +33,7 @@
   "ine": {
     "ok": true,
     "source": "ine",
-    "rows": 140,
+    "rows": 60,
     "last": "2026-11-24"
   },
   "intl": {
@@ -67,5 +67,5 @@
     "source": "SOFR, New York Fed",
     "last": "2026-11-20"
   },
-  "run_utc": "2026-11-24T01:45:39+00:00"
+  "run_utc": "2026-11-24T03:41:31+00:00"
 }
