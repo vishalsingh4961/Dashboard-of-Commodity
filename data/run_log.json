@@ -28,7 +28,7 @@
   "fx": {
     "ok": true,
     "source": "ECB via frankfurter.dev",
-    "last": "2026-11-23"
+    "last": "2026-11-24"
   },
   "ine": {
     "ok": true,
@@ -41,31 +41,31 @@
       "ok": true,
       "label": "LBMA gold",
       "source": "westmetall USD_ozt_London",
-      "last": "2026-11-23"
+      "last": "2026-11-24"
     },
     "ag": {
       "ok": true,
       "label": "COMEX silver",
       "source": "yahoo SI=F",
-      "last": "2026-11-23"
+      "last": "2026-11-24"
     },
     "sc": {
       "ok": true,
       "label": "Brent",
       "source": "yahoo BZ=F",
-      "last": "2026-11-23"
+      "last": "2026-11-24"
     },
     "sc_2": {
       "ok": true,
       "label": "WTI",
       "source": "yahoo CL=F",
-      "last": "2026-11-23"
+      "last": "2026-11-24"
     }
   },
   "rates": {
     "ok": true,
     "source": "SOFR, New York Fed",
-    "last": "2026-11-20"
+    "last": "2026-11-23"
   },
-  "run_utc": "2026-11-24T03:41:31+00:00"
+  "run_utc": "2026-11-24T23:33:49+00:00"
 }
