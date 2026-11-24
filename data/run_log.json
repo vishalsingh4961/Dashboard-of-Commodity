@@ -3,69 +3,69 @@
     "cu": {
       "ok": true,
       "source": "westmetall",
-      "rows": 9,
-      "last": "2026-11-19"
+      "rows": 11,
+      "last": "2026-11-23"
     },
     "al": {
       "ok": true,
       "source": "westmetall",
-      "rows": 9,
-      "last": "2026-11-19"
+      "rows": 11,
+      "last": "2026-11-23"
     },
     "zn": {
       "ok": true,
       "source": "westmetall",
-      "rows": 9,
-      "last": "2026-11-19"
+      "rows": 11,
+      "last": "2026-11-23"
     }
   },
   "shfe": {
     "ok": true,
     "source": "shfe",
-    "rows": 280,
-    "last": "2026-11-20"
+    "rows": 392,
+    "last": "2026-11-24"
   },
   "fx": {
     "ok": true,
     "source": "ECB via frankfurter.dev",
-    "last": "2026-11-20"
+    "last": "2026-11-23"
   },
   "ine": {
     "ok": true,
     "source": "ine",
-    "rows": 100,
-    "last": "2026-11-20"
+    "rows": 140,
+    "last": "2026-11-24"
   },
   "intl": {
     "au": {
       "ok": true,
       "label": "LBMA gold",
       "source": "westmetall USD_ozt_London",
-      "last": "2026-11-20"
+      "last": "2026-11-23"
     },
     "ag": {
       "ok": true,
       "label": "COMEX silver",
       "source": "yahoo SI=F",
-      "last": "2026-11-20"
+      "last": "2026-11-23"
     },
     "sc": {
       "ok": true,
       "label": "Brent",
       "source": "yahoo BZ=F",
-      "last": "2026-11-20"
+      "last": "2026-11-23"
     },
     "sc_2": {
       "ok": true,
       "label": "WTI",
       "source": "yahoo CL=F",
-      "last": "2026-11-20"
+      "last": "2026-11-23"
     }
   },
   "rates": {
     "ok": true,
     "source": "SOFR, New York Fed",
-    "last": "2026-11-19"
+    "last": "2026-11-20"
   },
-  "run_utc": "2026-11-20T23:33:36+00:00"
+  "run_utc": "2026-11-24T01:45:39+00:00"
 }
